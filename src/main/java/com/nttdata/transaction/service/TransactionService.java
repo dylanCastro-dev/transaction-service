@@ -1,175 +1,76 @@
 package com.nttdata.transaction.service;
 
 import com.nttdata.transaction.model.*;
-import com.nttdata.transaction.repository.TransactionRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
+import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.LocalDateTime;
 
-@Service
-@RequiredArgsConstructor
-public class TransactionService {
+public interface TransactionService {
 
-    private final TransactionRepository repository;
+    /**
+     * Obtiene todas las transacciones registradas en el sistema.
+     *
+     * @return Flux con la lista de transacciones
+     */
+    Flux<Transaction> getAll();
 
-    private final WebClient webClient = WebClient.builder()
-            .baseUrl("http://localhost:8081") // URL de product-service
-            .build();
+    /**
+     * Busca una transacción por su identificador único.
+     *
+     * @param id Identificador de la transacción
+     * @return Mono con la transacción encontrada o vacío si no existe
+     */
+    Mono<Transaction> getById(String id);
 
-    public Flux<Transaction> getAll() {
-        return repository.findAll();
-    }
+    /**
+     * Obtiene todas las transacciones asociadas a un producto bancario específico.
+     *
+     * @param productId Identificador del producto bancario
+     * @return Flux con las transacciones correspondientes al producto
+     */
+    Flux<Transaction> getByProductId(String productId);
 
-    public Mono<Transaction> getById(String id) {
-        return repository.findById(id);
-    }
+    /**
+     * Actualiza los datos de una transacción existente.
+     *
+     * @param id Identificador de la transacción a actualizar
+     * @param transaction Datos nuevos de la transacción
+     * @return Mono con la transacción actualizada
+     */
+    Mono<Transaction> update(String id, Transaction transaction);
 
-    public Flux<Transaction> getByProductId(String productId) {
-        return repository.findByProductId(productId);
-    }
+    /**
+     * Elimina una transacción por su identificador único.
+     *
+     * @param id Identificador de la transacción a eliminar
+     * @return Mono vacío cuando la eliminación se completa
+     */
+    Mono<Void> delete(String id);
 
-    public Mono<AvailableBalanceDTO> getAvailableBalance(String productId) {
-        return webClient.get()
-                .uri("/products/{id}", productId)
-                .retrieve()
-                .bodyToMono(BankProductDTO.class)
-                .map(product -> {
-                    double balance = product.getBalance() != null ? product.getBalance() : 0.0;
+    /**
+     * Obtiene el saldo disponible de un producto bancario.
+     * Para productos de crédito, calcula el disponible como límite menos deuda actual.
+     *
+     * @param productId Identificador del producto bancario
+     * @return Mono con el saldo disponible
+     */
+    Mono<AvailableBalanceDTO> getAvailableBalance(String productId);
 
-                    if (isCreditCard(product.getType()) && product.getCreditLimit() != null) {
-                        double available = product.getCreditLimit() - balance;
-                        return new AvailableBalanceDTO(product.getId(), available, "CREDIT");
-                    } else {
-                        return new AvailableBalanceDTO(product.getId(), balance, "BANK");
-                    }
-                });
-    }
+    /**
+     * Registra una nueva transacción en el sistema, aplicando las reglas de negocio correspondientes
+     * según el tipo de producto y tipo de transacción.
+     *
+     * @param transaction Transacción a registrar
+     * @return Mono con la transacción registrada
+     */
+    Mono<Transaction> create(Transaction transaction);
 
-    public Mono<Transaction> create(Transaction transaction) {
-        transaction.setDateTime(LocalDateTime.now());
-
-        return webClient.get()
-                .uri("/products/{id}", transaction.getProductId())
-                .retrieve()
-                .bodyToMono(BankProductDTO.class)
-                .flatMap(product -> {
-                    switch (transaction.getType()) {
-                        case PAYMENT:
-                            return handleCreditPayment(transaction, product);
-                        case WITHDRAWAL:
-                            return isCreditCard(product.getType())
-                                    ? handleCreditCardWithdrawal(transaction, product)
-                                    : handleBankTransaction(transaction, product);
-                        case DEPOSIT:
-                            return handleBankTransaction(transaction, product);
-                        default:
-                            return Mono.error(new IllegalArgumentException("Tipo de transacción no soportado."));
-                    }
-                });
-    }
-
-    private Mono<Transaction> handleCreditPayment(Transaction tx, BankProductDTO product) {
-        if (!isProductoCredito(product.getType())) {
-            return Mono.error(new IllegalArgumentException("Solo se pueden realizar pagos a productos de crédito."));
-        }
-
-        double balance = safeBalance(product);
-        if (tx.getAmount() > balance) {
-            return Mono.error(new IllegalArgumentException("El monto del pago excede la deuda actual."));
-        }
-
-        product.setBalance(balance - tx.getAmount());
-        return updateProductAndSaveTransaction(product, tx);
-    }
-
-    private Mono<Transaction> handleCreditCardWithdrawal(Transaction tx, BankProductDTO product) {
-        if (product.getCreditLimit() == null) {
-            return Mono.error(new IllegalArgumentException("Producto sin límite de crédito."));
-        }
-
-        double balance = safeBalance(product);
-        double newBalance = balance + tx.getAmount();
-
-        if (newBalance > product.getCreditLimit()) {
-            return Mono.error(new IllegalArgumentException("Monto excede límite de crédito."));
-        }
-
-        product.setBalance(newBalance);
-        return updateProductAndSaveTransaction(product, tx);
-    }
-
-    private Mono<Transaction> handleBankTransaction(Transaction tx, BankProductDTO product) {
-        if (!isCuentaBancaria(product.getType())) {
-            return Mono.error(new IllegalArgumentException("Transacción no válida para este tipo de producto."));
-        }
-
-        double balance = safeBalance(product);
-        double newBalance;
-
-        if (tx.getType() == TransactionType.DEPOSIT) {
-            newBalance = balance + tx.getAmount();
-        } else if (tx.getType() == TransactionType.WITHDRAWAL) {
-            if (tx.getAmount() > balance) {
-                return Mono.error(new IllegalArgumentException("Fondos insuficientes para el retiro."));
-            }
-            newBalance = balance - tx.getAmount();
-        } else {
-            return Mono.error(new IllegalArgumentException("Tipo de transacción no válido para cuenta bancaria."));
-        }
-
-        product.setBalance(newBalance);
-        return updateProductAndSaveTransaction(product, tx);
-    }
-
-    private Mono<Transaction> updateProductAndSaveTransaction(BankProductDTO product, Transaction tx) {
-        return webClient.put()
-                .uri("/products/{id}", product.getId())
-                .bodyValue(product)
-                .retrieve()
-                .bodyToMono(BankProductDTO.class)
-                .flatMap(updated -> repository.save(tx));
-    }
-
-    private double safeBalance(BankProductDTO product) {
-        return product.getBalance() != null ? product.getBalance() : 0.0;
-    }
-
-    public Mono<Transaction> update(String id, Transaction transaction) {
-        return repository.findById(id)
-                .flatMap(existing -> {
-                    existing.setType(transaction.getType());
-                    existing.setAmount(transaction.getAmount());
-                    existing.setProductId(transaction.getProductId());
-                    return repository.save(existing);
-                });
-    }
-
-    public Mono<Void> delete(String id) {
-        return repository.deleteById(id);
-    }
-
-    public Flux<Transaction> findByProductId(String productId) {
-        return repository.findByProductId(productId);
-    }
-
-    private boolean isCreditCard(ProductType type) {
-        return type == ProductType.TARJETA_CREDITO;
-    }
-
-    private boolean isCuentaBancaria(ProductType type) {
-        return type == ProductType.AHORRO ||
-                type == ProductType.CORRIENTE ||
-                type == ProductType.PLAZO_FIJO;
-    }
-
-    private boolean isProductoCredito(ProductType type) {
-        return type == ProductType.CREDITO_PERSONAL
-                || type == ProductType.CREDITO_EMPRESARIAL
-                || type == ProductType.TARJETA_CREDITO;
-    }
-
+    /**
+     * Simula una ejecución mensual para aplicar la comisión de mantenimiento
+     * a todos los productos que tienen un monto de mantenimiento mayor a 0.
+     * Registra una transacción por la comisión y actualiza el saldo del producto.
+     */
+    public Mono<Void> applyMonthlyMaintenanceFee();
 }
+

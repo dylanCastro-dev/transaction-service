@@ -1,9 +1,11 @@
-package com.nttdata.transaction.model;
+package com.nttdata.transaction.model.Dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
 
 @Data
 @AllArgsConstructor
@@ -15,7 +17,7 @@ public class AvailableBalanceDTO {
     private String productId;
 
     @Schema(description = "Saldo disponible", example = "2450.75")
-    private Double availableBalance;
+    private BigDecimal availableBalance;
 
     @Schema(description = "Categoría del producto (CREDIT o BANK)", example = "CREDIT")
     private String productCategory;

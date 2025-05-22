@@ -1,10 +1,12 @@
 package com.nttdata.transaction.model;
 
+import com.nttdata.transaction.model.Type.TransactionType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Document(collection = "transactions")
@@ -26,7 +28,7 @@ public class Transaction {
     private TransactionType type;
 
     @Schema(description = "Monto de la transacción", example = "250.0", required = true)
-    private Double amount;
+    private BigDecimal amount;
 
     @Schema(description = "Fecha y hora de la transacción", example = "2024-05-20T10:30:00")
     private LocalDateTime dateTime;

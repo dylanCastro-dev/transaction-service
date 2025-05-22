@@ -1,14 +1,10 @@
 package com.nttdata.transaction.controller;
 
-import com.nttdata.transaction.model.AvailableBalanceDTO;
+import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import com.nttdata.transaction.model.Transaction;
 import com.nttdata.transaction.service.TransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -77,6 +73,13 @@ public class TransactionController {
     @GetMapping("/product/{productId}")
     public Flux<Transaction> getByProductId(
             @Parameter(description = "ID del producto relacionado") @PathVariable String productId) {
-        return service.findByProductId(productId);
+        return service.getByProductId(productId);
+    }
+
+    @Operation(summary = "Aplicar comisión mensual por mantenimiento a todos los productos con maintenanceFee > 0")
+    @PostMapping("/apply-monthly-fee")
+    public Mono<String> applyMonthlyFee() {
+        return service.applyMonthlyMaintenanceFee()
+                .thenReturn("Comisión mensual aplicada correctamente.");
     }
 }
