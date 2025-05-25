@@ -7,9 +7,10 @@ import com.nttdata.transaction.model.Type.ProductType;
 import com.nttdata.transaction.model.Type.TransactionType;
 import com.nttdata.transaction.repository.TransactionRepository;
 import com.nttdata.transaction.service.TransactionService;
+import com.nttdata.transaction.utils.Constants;
+import com.nttdata.transaction.utils.Utils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -23,10 +24,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository repository;
-
-    private final WebClient webClient = WebClient.builder()
-            .baseUrl("http://localhost:8081") // URL de product-service
-            .build();
 
     @Override
     public Flux<Transaction> getAll() {
@@ -61,7 +58,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public Mono<AvailableBalanceDTO> getAvailableBalance(String productId) {
-        return webClient.get()
+        return Utils.getProductService().get()
                 .uri("/products/{id}", productId)
                 .retrieve()
                 .bodyToMono(BankProductDTO.class)
@@ -81,7 +78,7 @@ public class TransactionServiceImpl implements TransactionService {
     public Mono<Transaction> create(Transaction transaction) {
         transaction.setDateTime(LocalDateTime.now());
 
-        return webClient.get()
+        return Utils.getProductService().get()
                 .uri("/products/{id}", transaction.getProductId())
                 .retrieve()
                 .bodyToMono(BankProductDTO.class)
@@ -101,14 +98,14 @@ public class TransactionServiceImpl implements TransactionService {
                             return handleBankTransaction(transaction, product);
                         default:
                             // Rechaza cualquier tipo de transacción no soportada por el sistema.
-                            return Mono.error(new IllegalArgumentException("Tipo de transacción no soportado."));
+                            return Mono.error(new IllegalArgumentException(Constants.ERROR_UNSUPPORTED_TRANSACTION_TYPE));
                     }
                 });
     }
 
     public Mono<Void> applyMonthlyMaintenanceFee() {
         // Simula una ejecución mensual para aplicar la comisión de mantenimiento
-        return webClient.get()
+        return Utils.getProductService().get()
                 .uri("/products")
                 .retrieve()
                 .bodyToFlux(BankProductDTO.class)
@@ -133,7 +130,7 @@ public class TransactionServiceImpl implements TransactionService {
                             .dateTime(LocalDateTime.now())
                             .build();
 
-                    return webClient.put()
+                    return Utils.getProductService().put()
                             .uri("/products/{id}", product.getId())
                             .bodyValue(product)
                             .retrieve()
@@ -147,14 +144,14 @@ public class TransactionServiceImpl implements TransactionService {
     private Mono<Transaction> handleCreditPayment(Transaction tx, BankProductDTO product) {
         //Funcion que maneja el pago de dinero de tarjetas de credito
         if (!isProductoCredito(product.getType())) {
-            return Mono.error(new IllegalArgumentException("Solo se pueden realizar pagos a productos de crédito."));
+            return Mono.error(new IllegalArgumentException(Constants.ERROR_PAYMENT_ONLY_FOR_CREDIT_PRODUCTS));
         }
 
         BigDecimal balance = safeBalance(product);
         BigDecimal amount = tx.getAmount();
 
         if (amount.compareTo(balance) > 0) {
-            return Mono.error(new IllegalArgumentException("El monto del pago excede la deuda actual."));
+            return Mono.error(new IllegalArgumentException(Constants.ERROR_PAYMENT_EXCEEDS_DEBT));
         }
 
         product.setBalance(balance.subtract(amount));
@@ -165,14 +162,14 @@ public class TransactionServiceImpl implements TransactionService {
     private Mono<Transaction> handleCreditCardWithdrawal(Transaction tx, BankProductDTO product) {
         //Funcion que maneja retiro de dinero de tarjetas de credito
         if (product.getCreditLimit() == null) {
-            return Mono.error(new IllegalArgumentException("Producto sin límite de crédito."));
+            return Mono.error(new IllegalArgumentException(Constants.ERROR_CREDIT_LIMIT_NOT_DEFINED));
         }
 
         BigDecimal balance = safeBalance(product);
         BigDecimal newBalance = balance.add(tx.getAmount());
 
         if (newBalance.compareTo(product.getCreditLimit()) > 0) {
-            return Mono.error(new IllegalArgumentException("Monto excede límite de crédito."));
+            return Mono.error(new IllegalArgumentException(Constants.ERROR_AMOUNT_EXCEEDS_CREDIT_LIMIT));
         }
 
         product.setBalance(newBalance);
@@ -182,16 +179,14 @@ public class TransactionServiceImpl implements TransactionService {
     private Mono<Transaction> handleBankTransaction(Transaction tx, BankProductDTO product) {
         //Funcion que maneja transacciones de cuentas bancarias
         if (!isCuentaBancaria(product.getType())) {
-            return Mono.error(new IllegalArgumentException("Transacción no válida para este tipo de producto."));
+            return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_PRODUCT));
         }
 
         // Validación: Si es cuenta de plazo fijo, solo permite transacción en un día específico
         if (product.getType() == ProductType.PLAZO_FIJO && product.getAllowedTransactionDay() != null) {
             int today = LocalDate.now().getDayOfMonth();
             if (today != product.getAllowedTransactionDay()) {
-                return Mono.error(new IllegalArgumentException(
-                        "Solo se permiten transacciones el día " + product.getAllowedTransactionDay() + " de cada mes para cuentas a plazo fijo."
-                ));
+                return Mono.error(new IllegalArgumentException(String.format(Constants.ERROR_FIXED_TERM_WRONG_DAY, product.getAllowedTransactionDay())));
             }
         }
 
@@ -199,7 +194,7 @@ public class TransactionServiceImpl implements TransactionService {
         return  canPerformTransaction(product)
                 .flatMap(canProceed -> {
                     if (!canProceed) {
-                        return Mono.error(new IllegalArgumentException("Límite mensual de movimientos alcanzado para este producto."));
+                        return Mono.error(new IllegalArgumentException(Constants.ERROR_MONTHLY_LIMIT_REACHED));
                     }
 
                     BigDecimal balance = safeBalance(product);
@@ -216,11 +211,11 @@ public class TransactionServiceImpl implements TransactionService {
                         }
                         BigDecimal totalDebit = tx.getAmount().add(BigDecimal.valueOf(maintenanceFee));
                         if (totalDebit.compareTo(balance) > 0) {
-                            return Mono.error(new IllegalArgumentException("Fondos insuficientes para el retiro."));
+                            return Mono.error(new IllegalArgumentException(Constants.ERROR_INSUFFICIENT_FUNDS));
                         }
                         newBalance = balance.subtract(totalDebit);
                     } else {
-                        return Mono.error(new IllegalArgumentException("Tipo de transacción no válido para cuenta bancaria."));
+                        return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_BANK_ACCOUNT));
                     }
 
                     product.setBalance(newBalance);
@@ -230,7 +225,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     private Mono<Transaction> updateProductAndSaveTransaction(BankProductDTO product, Transaction tx) {
         //Actualiza el producto y registra una nueva transaccion
-        return webClient.put()
+        return Utils.getProductService().put()
                 .uri("/products/{id}", product.getId())
                 .bodyValue(product)
                 .retrieve()

@@ -1,85 +1,99 @@
 package com.nttdata.transaction.controller;
 
-import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
-import com.nttdata.transaction.model.Transaction;
 import com.nttdata.transaction.service.TransactionService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
+import com.nttdata.transaction.utils.Constants;
+import com.nttdata.transaction.utils.TransactionMapper;
+import com.nttdata.transaction.utils.Utils;
 import lombok.RequiredArgsConstructor;
+import org.openapitools.api.TransactionsApi;
+import org.openapitools.model.AvailableBalanceResponse;
+import org.openapitools.model.TransactionBody;
+import org.openapitools.model.TransactionResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping("/transactions")
 @RequiredArgsConstructor
-public class TransactionController {
+public class TransactionController implements TransactionsApi {
+
+    private static final Logger log = LoggerFactory.getLogger(TransactionController.class);
 
     private final TransactionService service;
 
-    @Operation(summary = "Listar todas las transacciones")
-    @GetMapping
-    public Flux<Transaction> getAll() {
-        return service.getAll();
+    @Override
+    public Mono<ResponseEntity<TransactionResponse>> getAllTransactions(ServerWebExchange exchange) {
+        return service.getAll()
+                .collectList()
+                .map(transactions -> TransactionMapper.toResponse(transactions, 200, Constants.SUCCESS_FIND_LIST_TRANSACTION))
+                .map(ResponseEntity::ok);
     }
 
-    @Operation(summary = "Obtener transacción por ID")
-    @GetMapping("/{id}")
-    public Mono<Transaction> getById(
-            @Parameter(description = "ID de la transacción", required = true)
-            @PathVariable String id) {
-        return service.getById(id);
+    @Override
+    public Mono<ResponseEntity<TransactionResponse>> getTransactionById(String id, ServerWebExchange exchange) {
+        return service.getById(id)
+                .map(transaction -> TransactionMapper.toResponse(transaction, 200, Constants.SUCCESS_FIND_TRANSACTION))
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(TransactionMapper.toResponse(404, Constants.ERROR_FIND_TRANSACTION)));
     }
 
-    @Operation(summary = "Consultar saldo disponible de un producto bancario o tarjeta de crédito")
-    @GetMapping("/balance/{productId}")
-    public Mono<AvailableBalanceDTO> getAvailableBalance(@PathVariable String productId) {
-        return service.getAvailableBalance(productId);
+    @Override
+    public Mono<ResponseEntity<TransactionResponse>> createTransaction(
+            @RequestBody Mono<TransactionBody> request, ServerWebExchange exchange) {
+
+        return request
+                .doOnNext(req -> log.debug("Request recibido: {}", req))
+                .doOnNext(Utils::validateTransactionBody)
+                .map(TransactionMapper::toTransaction)
+                .flatMap(service::create)
+                .map(created -> TransactionMapper.toResponse(created, 201, Constants.SUCCESS_CREATE_TRANSACTION))
+                .map(ResponseEntity::ok);
     }
 
-    @Operation(summary = "Listar todas las transacciones de un producto bancario")
-    @GetMapping("/by-product/{productId}")
-    public Flux<Transaction> getByProduct(@PathVariable String productId) {
-        return service.getByProductId(productId);
+    @Override
+    public Mono<ResponseEntity<TransactionResponse>> updateTransaction(
+            String id, @RequestBody Mono<TransactionBody> request, ServerWebExchange exchange) {
+
+        return request
+                .doOnNext(req -> log.debug("Request recibido: {}", req))
+                .doOnNext(Utils::validateTransactionBody)
+                .map(TransactionMapper::toTransaction)
+                .flatMap(transaction -> service.update(id, transaction))
+                .map(updated -> TransactionMapper.toResponse(updated, 200, Constants.SUCCESS_UPDATE_TRANSACTION))
+                .map(ResponseEntity::ok);
     }
 
-
-
-    @Operation(summary = "Registrar una nueva transacción")
-    @PostMapping
-    public Mono<Transaction> create(
-            @Parameter(description = "Datos de la transacción", required = true)
-            @RequestBody Transaction transaction) {
-        return service.create(transaction);
+    @Override
+    public Mono<ResponseEntity<TransactionResponse>> deleteTransaction(String id, ServerWebExchange exchange) {
+        return service.delete(id)
+                .thenReturn(TransactionMapper.toResponse(200, Constants.SUCCESS_DELETE_TRANSACTION))
+                .map(ResponseEntity::ok);
     }
 
-    @Operation(summary = "Actualizar transacción por ID")
-    @PutMapping("/{id}")
-    public Mono<Transaction> update(
-            @PathVariable String id,
-            @RequestBody Transaction transaction) {
-        return service.update(id, transaction);
+    @Override
+    public Mono<ResponseEntity<TransactionResponse>> getTransactionsByProduct(String productId, ServerWebExchange exchange) {
+        return service.getByProductId(productId)
+                .collectList()
+                .map(transactions -> TransactionMapper.toResponse(transactions, 200, Constants.SUCCESS_FIND_LIST_TRANSACTION_BY_PRODUCT))
+                .map(ResponseEntity::ok);
     }
 
-    @Operation(summary = "Eliminar transacción por ID")
-    @DeleteMapping("/{id}")
-    public Mono<Void> delete(
-            @Parameter(description = "ID de la transacción a eliminar", required = true)
-            @PathVariable String id) {
-        return service.delete(id);
+    @Override
+    public Mono<ResponseEntity<AvailableBalanceResponse>> getAvailableBalance(String productId, ServerWebExchange exchange) {
+        return service.getAvailableBalance(productId)
+                .map(balance -> TransactionMapper.toResponse(balance, 200, Constants.SUCCESS_GET_BALANCE))
+                .map(ResponseEntity::ok);
     }
 
-    @Operation(summary = "Listar transacciones por ID de producto")
-    @GetMapping("/product/{productId}")
-    public Flux<Transaction> getByProductId(
-            @Parameter(description = "ID del producto relacionado") @PathVariable String productId) {
-        return service.getByProductId(productId);
-    }
-
-    @Operation(summary = "Aplicar comisión mensual por mantenimiento a todos los productos con maintenanceFee > 0")
-    @PostMapping("/apply-monthly-fee")
-    public Mono<String> applyMonthlyFee() {
+    @Override
+    public Mono<ResponseEntity<TransactionResponse>> applyMonthlyFee(ServerWebExchange exchange) {
         return service.applyMonthlyMaintenanceFee()
-                .thenReturn("Comisión mensual aplicada correctamente.");
+                .map(transactions -> TransactionMapper.toResponse(200, Constants.SUCCESS_APPLY_MONTHLY_FEE))
+                .map(ResponseEntity::ok);
     }
 }

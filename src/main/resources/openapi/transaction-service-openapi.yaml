@@ -1,0 +1,224 @@
+openapi: 3.0.3
+info:
+  title: Transaction Service API
+  description: API REST para gestionar transacciones bancarias
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/transactions
+paths:
+  /transactions:
+    get:
+      summary: Listar todas las transacciones
+      operationId: getAllTransactions
+      responses:
+        '200':
+          description: Lista de transacciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+    post:
+      summary: Registrar una nueva transacción
+      operationId: createTransaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionBody'
+      responses:
+        '200':
+          description: Transacción registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+
+  /transactions/{id}:
+    get:
+      summary: Obtener transacción por ID
+      operationId: getTransactionById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle de la transacción
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+    put:
+      summary: Actualizar transacción por ID
+      operationId: updateTransaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionBody'
+      responses:
+        '200':
+          description: Transacción actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+    delete:
+      summary: Eliminar transacción por ID
+      operationId: deleteTransaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transacción eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+
+  /transactions/balance/{productId}:
+    get:
+      summary: Consultar saldo disponible de un producto bancario o tarjeta de crédito
+      operationId: getAvailableBalance
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Saldo disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableBalanceResponse'
+
+  /transactions/by-product/{productId}:
+    get:
+      summary: Listar todas las transacciones de un producto bancario
+      operationId: getTransactionsByProduct
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de transacciones por producto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+
+  /transactions/product/{productId}:
+    get:
+      summary: Listar transacciones por ID de producto
+      operationId: getTransactionsByProductId
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de transacciones por ID de producto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+
+  /transactions/apply-monthly-fee:
+    post:
+      summary: Aplicar comisión mensual por mantenimiento
+      operationId: applyMonthlyFee
+      responses:
+        '200':
+          description: Comisión aplicada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+
+components:
+  schemas:
+    TransactionBody:
+      type: object
+      required:
+        - productId
+        - type
+        - amount
+      properties:
+        id:
+          type: string
+          example: 663032b0ac82a12a8445a9d1
+        productId:
+          type: string
+          example: prod123
+        type:
+          type: string
+          example: "[DEPOSIT, WITHDRAWAL, PAYMENT]"
+        amount:
+          type: number
+          format: decimal
+          example: 250.0
+        dateTime:
+          type: string
+          format: date-time
+          example: 2024-05-20T10:30:00
+
+    TransactionResponse:
+      type: object
+      description: Respuesta procesada
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Operación exitosa
+        transactions:
+          type: array
+          description: Lista de transacciones
+          items:
+            $ref: '#/components/schemas/TransactionBody'
+
+    AvailableBalanceResponse:
+      type: object
+      description: Respuesta con saldo disponible
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Saldo disponible consultado correctamente
+        balance:
+          type: object
+          properties:
+            productId:
+              type: string
+              example: 663018e0ac82a12a8445a9b0
+            availableBalance:
+              type: number
+              format: decimal
+              example: 2450.75
+            productCategory:
+              type: string
+              example: "[CREDIT, BANK]"
