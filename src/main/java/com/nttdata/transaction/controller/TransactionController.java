@@ -80,14 +80,18 @@ public class TransactionController implements TransactionsApi {
         return service.getByProductId(productId)
                 .collectList()
                 .map(transactions -> TransactionMapper.toResponse(transactions, 200, Constants.SUCCESS_FIND_LIST_TRANSACTION_BY_PRODUCT))
-                .map(ResponseEntity::ok);
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(TransactionMapper.toResponse(404, Constants.ERROR_FIND_TRANSACTION)));
     }
 
     @Override
     public Mono<ResponseEntity<AvailableBalanceResponse>> getAvailableBalance(String productId, ServerWebExchange exchange) {
         return service.getAvailableBalance(productId)
-                .map(balance -> TransactionMapper.toResponse(balance, 200, Constants.SUCCESS_GET_BALANCE))
-                .map(ResponseEntity::ok);
+                .map(balance -> TransactionMapper.toResponseAvailableBalance(balance, 200, Constants.SUCCESS_GET_BALANCE))
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(TransactionMapper.toResponseAvailableBalance(404, Constants.ERROR_FIND_TRANSACTION)));
     }
 
     @Override

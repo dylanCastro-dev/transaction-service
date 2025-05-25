@@ -8,8 +8,10 @@ import com.nttdata.transaction.model.Type.TransactionType;
 import com.nttdata.transaction.repository.TransactionRepository;
 import com.nttdata.transaction.service.TransactionService;
 import com.nttdata.transaction.utils.Constants;
+import com.nttdata.transaction.utils.EmptyResultException;
 import com.nttdata.transaction.utils.Utils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -61,6 +63,12 @@ public class TransactionServiceImpl implements TransactionService {
         return Utils.getProductService().get()
                 .uri("/products/{id}", productId)
                 .retrieve()
+                .onStatus(HttpStatus::is4xxClientError, response -> {
+                    if (response.statusCode() == HttpStatus.NOT_FOUND) {
+                        return Mono.error(new EmptyResultException(Constants.ERROR_FIND_PRODUCT));
+                    }
+                    return Mono.error(new RuntimeException("Error en la solicitud: " + response.statusCode()));
+                })
                 .bodyToMono(BankProductDTO.class)
                 .map(product -> {
                     BigDecimal balance = product.getBalance() != null ? product.getBalance() : BigDecimal.ZERO;
@@ -81,6 +89,12 @@ public class TransactionServiceImpl implements TransactionService {
         return Utils.getProductService().get()
                 .uri("/products/{id}", transaction.getProductId())
                 .retrieve()
+                .onStatus(HttpStatus::is4xxClientError, response -> {
+                    if (response.statusCode() == HttpStatus.NOT_FOUND) {
+                        return Mono.error(new EmptyResultException(Constants.ERROR_FIND_PRODUCT));
+                    }
+                    return Mono.error(new RuntimeException("Error en la solicitud: " + response.statusCode()));
+                })
                 .bodyToMono(BankProductDTO.class)
                 .flatMap(product -> {
                     switch (transaction.getType()) {

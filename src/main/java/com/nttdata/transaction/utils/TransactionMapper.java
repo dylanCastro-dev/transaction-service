@@ -77,7 +77,14 @@ public class TransactionMapper {
                 .transactions(null);
     }
 
-    public static AvailableBalanceResponse toResponse(AvailableBalanceDTO dto, int status, String message) {
+    public static AvailableBalanceResponse toResponseAvailableBalance(int status, String message) {
+        return new AvailableBalanceResponse()
+                .status(status)
+                .message(message)
+                .balance(null);
+    }
+
+    public static AvailableBalanceResponse toResponseAvailableBalance(AvailableBalanceDTO dto, int status, String message) {
         return new AvailableBalanceResponse()
                 .status(status)
                 .message(message)

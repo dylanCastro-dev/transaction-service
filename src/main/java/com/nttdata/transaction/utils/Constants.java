@@ -5,6 +5,8 @@ public class Constants {
     public static final String SUCCESS_FIND_LIST_TRANSACTION = "Lista de transacciones obtenida correctamente.";
     public static final String SUCCESS_FIND_TRANSACTION = "Transacción obtenida correctamente.";
     public static final String ERROR_FIND_TRANSACTION = "No se encontró la transacción solicitada.";
+    public static final String ERROR_FIND_PRODUCT = "No se encontró el producto solicitado.";
+    public static final String ERROR_FIND_CUSTOMER = "No se encontró el cliente solicitado.";
     public static final String SUCCESS_CREATE_TRANSACTION = "Transacción registrada correctamente.";
     public static final String SUCCESS_UPDATE_TRANSACTION = "Transacción actualizada correctamente.";
     public static final String SUCCESS_DELETE_TRANSACTION = "Transacción eliminada correctamente.";

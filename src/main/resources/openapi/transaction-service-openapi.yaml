@@ -4,7 +4,7 @@ info:
   description: API REST para gestionar transacciones bancarias
   version: 1.0.0
 servers:
-  - url: http://localhost:8080/transactions
+  - url: http://localhost:8082/transactions
 paths:
   /transactions:
     get:
@@ -121,24 +121,6 @@ paths:
       responses:
         '200':
           description: Lista de transacciones por producto
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TransactionResponse'
-
-  /transactions/product/{productId}:
-    get:
-      summary: Listar transacciones por ID de producto
-      operationId: getTransactionsByProductId
-      parameters:
-        - name: productId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Lista de transacciones por ID de producto
           content:
             application/json:
               schema:
