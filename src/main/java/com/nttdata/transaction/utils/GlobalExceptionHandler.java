@@ -1,6 +1,7 @@
 package com.nttdata.transaction.utils;
 
 import org.openapitools.model.AvailableBalanceResponse;
+import org.openapitools.model.TemplateResponse;
 import org.openapitools.model.TransactionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,22 +17,22 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<TransactionResponse> handleIllegalArgument(IllegalArgumentException e) {
+    public ResponseEntity<TemplateResponse> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("Error de validación: {}", e.getMessage());
         return ResponseEntity
                 .badRequest()
-                .body(new TransactionResponse()
+                .body(new TemplateResponse()
                         .status(400)
-                        .message(Constants.ERROR_VALIDATION_MESSAGE)
+                        .message(String.format(Constants.ERROR_VALIDATION_MESSAGE, e.getMessage()))
                         .transactions(null));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<TransactionResponse> handleGeneralException(Exception e) {
+    public ResponseEntity<TemplateResponse> handleGeneralException(Exception e) {
         log.error("Error inesperado: ", e);
         return ResponseEntity
                 .status(500)
-                .body(new TransactionResponse()
+                .body(new TemplateResponse()
                         .status(500)
                         .message(Constants.ERROR_INTERNAL)
                         .transactions(null));

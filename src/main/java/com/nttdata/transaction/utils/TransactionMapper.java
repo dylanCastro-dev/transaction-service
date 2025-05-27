@@ -3,10 +3,7 @@ package com.nttdata.transaction.utils;
 import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import com.nttdata.transaction.model.Transaction;
 import com.nttdata.transaction.model.Type.TransactionType;
-import org.openapitools.model.AvailableBalanceResponse;
-import org.openapitools.model.AvailableBalanceResponseBalance;
-import org.openapitools.model.TransactionBody;
-import org.openapitools.model.TransactionResponse;
+import org.openapitools.model.*;
 
 import java.time.ZoneOffset;
 import java.util.List;
@@ -22,7 +19,6 @@ public class TransactionMapper {
      */
     public static Transaction toTransaction(TransactionBody body) {
         return Transaction.builder()
-                .id(body.getId())
                 .productId(body.getProductId())
                 .type(TransactionType.valueOf(body.getType()))
                 .amount(body.getAmount())
@@ -33,8 +29,8 @@ public class TransactionMapper {
     /**
      * Convierte una entidad Transaction a un TransactionBody.
      */
-    public static TransactionBody toTransactionBody(Transaction transaction) {
-        TransactionBody body = new TransactionBody();
+    public static TransactionResponse toTransactionResponse(Transaction transaction) {
+        TransactionResponse body = new TransactionResponse();
         body.setId(transaction.getId());
         body.setProductId(transaction.getProductId());
         body.setType(transaction.getType().name());
@@ -46,22 +42,22 @@ public class TransactionMapper {
     /**
      * Construye una respuesta con una sola transacción.
      */
-    public static TransactionResponse toResponse(Transaction transaction, int status, String message) {
-        return new TransactionResponse()
+    public static TemplateResponse toResponse(Transaction transaction, int status, String message) {
+        return new TemplateResponse()
                 .status(status)
                 .message(message)
-                .addTransactionsItem(toTransactionBody(transaction));
+                .addTransactionsItem(toTransactionResponse(transaction));
     }
 
     /**
      * Construye una respuesta con una lista de transacciones.
      */
-    public static TransactionResponse toResponse(List<Transaction> transaction, int status, String message) {
-        List<TransactionBody> bodyList = transaction.stream()
-                .map(TransactionMapper::toTransactionBody)
+    public static TemplateResponse toResponse(List<Transaction> transaction, int status, String message) {
+        List<TransactionResponse> bodyList = transaction.stream()
+                .map(TransactionMapper::toTransactionResponse)
                 .collect(Collectors.toList());
 
-        return new TransactionResponse()
+        return new TemplateResponse()
                 .status(status)
                 .message(message)
                 .transactions(bodyList);
@@ -70,8 +66,8 @@ public class TransactionMapper {
     /**
      * Construye una respuesta vacía (usado por ejemplo para delete o not found).
      */
-    public static TransactionResponse toResponse(int status, String message) {
-        return new TransactionResponse()
+    public static TemplateResponse toResponse(int status, String message) {
+        return new TemplateResponse()
                 .status(status)
                 .message(message)
                 .transactions(null);

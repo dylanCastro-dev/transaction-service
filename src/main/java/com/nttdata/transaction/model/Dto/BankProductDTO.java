@@ -11,6 +11,7 @@ public class BankProductDTO {
     private String id;
     private String customerId;
     private ProductType type;
+    private String name;
     private BigDecimal balance;
     private Double maintenanceFee;
     private Integer monthlyLimit;

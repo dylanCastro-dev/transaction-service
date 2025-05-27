@@ -16,7 +16,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/TemplateResponse'
     post:
       summary: Registrar una nueva transacción
       operationId: createTransaction
@@ -32,7 +32,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/TemplateResponse'
 
   /transactions/{id}:
     get:
@@ -50,7 +50,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/TemplateResponse'
     put:
       summary: Actualizar transacción por ID
       operationId: updateTransaction
@@ -72,7 +72,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/TemplateResponse'
     delete:
       summary: Eliminar transacción por ID
       operationId: deleteTransaction
@@ -88,7 +88,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/TemplateResponse'
 
   /transactions/balance/{productId}:
     get:
@@ -124,7 +124,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/TemplateResponse'
 
   /transactions/apply-monthly-fee:
     post:
@@ -136,16 +136,30 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/TemplateResponse'
 
 components:
   schemas:
     TransactionBody:
       type: object
-      required:
-        - productId
-        - type
-        - amount
+      properties:
+        productId:
+          type: string
+          example: prod123
+        type:
+          type: string
+          example: "[DEPOSIT, WITHDRAWAL, PAYMENT]"
+        amount:
+          type: number
+          format: decimal
+          example: 250.0
+        dateTime:
+          type: string
+          format: date-time
+          example: 2024-05-20T10:30:00
+
+    TransactionResponse:
+      type: object
       properties:
         id:
           type: string
@@ -165,7 +179,7 @@ components:
           format: date-time
           example: 2024-05-20T10:30:00
 
-    TransactionResponse:
+    TemplateResponse:
       type: object
       description: Respuesta procesada
       properties:
@@ -179,7 +193,7 @@ components:
           type: array
           description: Lista de transacciones
           items:
-            $ref: '#/components/schemas/TransactionBody'
+            $ref: '#/components/schemas/TransactionResponse'
 
     AvailableBalanceResponse:
       type: object

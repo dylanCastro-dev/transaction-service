@@ -7,6 +7,7 @@ import com.nttdata.transaction.utils.Utils;
 import lombok.RequiredArgsConstructor;
 import org.openapitools.api.TransactionsApi;
 import org.openapitools.model.AvailableBalanceResponse;
+import org.openapitools.model.TemplateResponse;
 import org.openapitools.model.TransactionBody;
 import org.openapitools.model.TransactionResponse;
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ public class TransactionController implements TransactionsApi {
     private final TransactionService service;
 
     @Override
-    public Mono<ResponseEntity<TransactionResponse>> getAllTransactions(ServerWebExchange exchange) {
+    public Mono<ResponseEntity<TemplateResponse>> getAllTransactions(ServerWebExchange exchange) {
         return service.getAll()
                 .collectList()
                 .map(transactions -> TransactionMapper.toResponse(transactions, 200, Constants.SUCCESS_FIND_LIST_TRANSACTION))
@@ -34,7 +35,7 @@ public class TransactionController implements TransactionsApi {
     }
 
     @Override
-    public Mono<ResponseEntity<TransactionResponse>> getTransactionById(String id, ServerWebExchange exchange) {
+    public Mono<ResponseEntity<TemplateResponse>> getTransactionById(String id, ServerWebExchange exchange) {
         return service.getById(id)
                 .map(transaction -> TransactionMapper.toResponse(transaction, 200, Constants.SUCCESS_FIND_TRANSACTION))
                 .map(ResponseEntity::ok)
@@ -43,7 +44,7 @@ public class TransactionController implements TransactionsApi {
     }
 
     @Override
-    public Mono<ResponseEntity<TransactionResponse>> createTransaction(
+    public Mono<ResponseEntity<TemplateResponse>> createTransaction(
             @RequestBody Mono<TransactionBody> request, ServerWebExchange exchange) {
 
         return request
@@ -56,7 +57,7 @@ public class TransactionController implements TransactionsApi {
     }
 
     @Override
-    public Mono<ResponseEntity<TransactionResponse>> updateTransaction(
+    public Mono<ResponseEntity<TemplateResponse>> updateTransaction(
             String id, @RequestBody Mono<TransactionBody> request, ServerWebExchange exchange) {
 
         return request
@@ -69,14 +70,14 @@ public class TransactionController implements TransactionsApi {
     }
 
     @Override
-    public Mono<ResponseEntity<TransactionResponse>> deleteTransaction(String id, ServerWebExchange exchange) {
+    public Mono<ResponseEntity<TemplateResponse>> deleteTransaction(String id, ServerWebExchange exchange) {
         return service.delete(id)
                 .thenReturn(TransactionMapper.toResponse(200, Constants.SUCCESS_DELETE_TRANSACTION))
                 .map(ResponseEntity::ok);
     }
 
     @Override
-    public Mono<ResponseEntity<TransactionResponse>> getTransactionsByProduct(String productId, ServerWebExchange exchange) {
+    public Mono<ResponseEntity<TemplateResponse>> getTransactionsByProduct(String productId, ServerWebExchange exchange) {
         return service.getByProductId(productId)
                 .collectList()
                 .map(transactions -> TransactionMapper.toResponse(transactions, 200, Constants.SUCCESS_FIND_LIST_TRANSACTION_BY_PRODUCT))
@@ -95,7 +96,7 @@ public class TransactionController implements TransactionsApi {
     }
 
     @Override
-    public Mono<ResponseEntity<TransactionResponse>> applyMonthlyFee(ServerWebExchange exchange) {
+    public Mono<ResponseEntity<TemplateResponse>> applyMonthlyFee(ServerWebExchange exchange) {
         return service.applyMonthlyMaintenanceFee()
                 .map(transactions -> TransactionMapper.toResponse(200, Constants.SUCCESS_APPLY_MONTHLY_FEE))
                 .map(ResponseEntity::ok);

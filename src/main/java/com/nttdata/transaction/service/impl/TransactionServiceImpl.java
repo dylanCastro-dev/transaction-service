@@ -2,6 +2,7 @@ package com.nttdata.transaction.service.impl;
 
 import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import com.nttdata.transaction.model.Dto.BankProductDTO;
+import com.nttdata.transaction.model.Dto.BankProductResponse;
 import com.nttdata.transaction.model.Transaction;
 import com.nttdata.transaction.model.Type.ProductType;
 import com.nttdata.transaction.model.Type.TransactionType;
@@ -69,8 +70,9 @@ public class TransactionServiceImpl implements TransactionService {
                     }
                     return Mono.error(new RuntimeException("Error en la solicitud: " + response.statusCode()));
                 })
-                .bodyToMono(BankProductDTO.class)
-                .map(product -> {
+                .bodyToMono(BankProductResponse.class)
+                .map(response -> {
+                    BankProductDTO product = response.getProducts().get(0);
                     BigDecimal balance = product.getBalance() != null ? product.getBalance() : BigDecimal.ZERO;
 
                     if (isCreditCard(product.getType()) && product.getCreditLimit() != null) {
@@ -80,6 +82,7 @@ public class TransactionServiceImpl implements TransactionService {
                         return new AvailableBalanceDTO(product.getId(), balance, "BANK");
                     }
                 });
+
     }
 
     @Override
@@ -95,8 +98,9 @@ public class TransactionServiceImpl implements TransactionService {
                     }
                     return Mono.error(new RuntimeException("Error en la solicitud: " + response.statusCode()));
                 })
-                .bodyToMono(BankProductDTO.class)
-                .flatMap(product -> {
+                .bodyToMono(BankProductResponse.class)
+                .flatMap(response -> {
+                    BankProductDTO product = response.getProducts().get(0);
                     switch (transaction.getType()) {
                         case PAYMENT:
                             // Procesa el pago de un producto de crédito, como préstamos o tarjetas de crédito.
@@ -122,7 +126,8 @@ public class TransactionServiceImpl implements TransactionService {
         return Utils.getProductService().get()
                 .uri("/products")
                 .retrieve()
-                .bodyToFlux(BankProductDTO.class)
+                .bodyToMono(BankProductResponse.class)
+                .flatMapMany(response -> Flux.fromIterable(response.getProducts()))
                 .filter(product -> {
                     Double fee = product.getMaintenanceFee();
                     return fee != null && fee > 0;
@@ -148,8 +153,10 @@ public class TransactionServiceImpl implements TransactionService {
                             .uri("/products/{id}", product.getId())
                             .bodyValue(product)
                             .retrieve()
-                            .bodyToMono(BankProductDTO.class)
-                            .then(repository.save(tx))
+                            .bodyToMono(BankProductResponse.class)
+                            .flatMap(response -> {
+                                return repository.save(tx);
+                            })
                             .then();
                 })
                 .then();
@@ -218,16 +225,10 @@ public class TransactionServiceImpl implements TransactionService {
                     if (tx.getType() == TransactionType.DEPOSIT) {
                         newBalance = balance.add(tx.getAmount());
                     } else if (tx.getType() == TransactionType.WITHDRAWAL) {
-                        double maintenanceFee = 0.0;
-                        if (product.getType() == ProductType.CORRIENTE) {
-                            //Aplica el costo de mantenimiento
-                            maintenanceFee = product.getMaintenanceFee() != null ? product.getMaintenanceFee() : 0.0;
-                        }
-                        BigDecimal totalDebit = tx.getAmount().add(BigDecimal.valueOf(maintenanceFee));
-                        if (totalDebit.compareTo(balance) > 0) {
+                        if (tx.getAmount().compareTo(balance) > 0) {
                             return Mono.error(new IllegalArgumentException(Constants.ERROR_INSUFFICIENT_FUNDS));
                         }
-                        newBalance = balance.subtract(totalDebit);
+                        newBalance = balance.subtract(tx.getAmount());
                     } else {
                         return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_BANK_ACCOUNT));
                     }
@@ -239,12 +240,15 @@ public class TransactionServiceImpl implements TransactionService {
 
     private Mono<Transaction> updateProductAndSaveTransaction(BankProductDTO product, Transaction tx) {
         //Actualiza el producto y registra una nueva transaccion
-        return Utils.getProductService().put()
+            return Utils.getProductService().put()
                 .uri("/products/{id}", product.getId())
                 .bodyValue(product)
                 .retrieve()
-                .bodyToMono(BankProductDTO.class)
-                .flatMap(updated -> repository.save(tx));
+                .bodyToMono(BankProductResponse.class)
+                .flatMap(response -> {
+                    BankProductDTO updated = response.getProducts().get(0);
+                    return repository.save(tx); // Puedes usar `updated` si lo necesitas
+                });
     }
 
     private BigDecimal safeBalance(BankProductDTO product) {
@@ -259,7 +263,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     private Mono<Boolean> canPerformTransaction(BankProductDTO product) {
         //Funcion que valida cuantas transacciones le quedan al producto
-        if (product.getType() != ProductType.AHORRO) {
+        if (product.getType() == ProductType.CORRIENTE) {
             return Mono.just(true); // No hay límite de movimientos
         }
 
