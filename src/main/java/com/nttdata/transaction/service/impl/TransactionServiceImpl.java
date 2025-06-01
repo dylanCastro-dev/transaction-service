@@ -61,7 +61,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public Mono<AvailableBalanceDTO> getAvailableBalance(String productId) {
-        return Utils.getProductService().get()
+        return Utils.getProductService().get().get()
                 .uri("/products/{id}", productId)
                 .retrieve()
                 .onStatus(HttpStatus::is4xxClientError, response -> {
@@ -89,7 +89,7 @@ public class TransactionServiceImpl implements TransactionService {
     public Mono<Transaction> create(Transaction transaction) {
         transaction.setDateTime(LocalDateTime.now());
 
-        return Utils.getProductService().get()
+        return Utils.getProductService().get().get()
                 .uri("/products/{id}", transaction.getProductId())
                 .retrieve()
                 .onStatus(HttpStatus::is4xxClientError, response -> {
@@ -106,24 +106,26 @@ public class TransactionServiceImpl implements TransactionService {
                             // Procesa el pago de un producto de crédito, como préstamos o tarjetas de crédito.
                             return handleCreditPayment(transaction, product);
                         case WITHDRAWAL:
-                            // Si el producto es una tarjeta de crédito, aplica la lógica específica para retiros con crédito.
+                            // Si el producto es una tarjeta de crédito:
+                            // Aplica la lógica específica para retiros con crédito.
                             // En caso contrario, maneja el retiro como una transacción bancaria común.
                             return isCreditCard(product.getType())
                                     ? handleCreditCardWithdrawal(transaction, product)
                                     : handleBankTransaction(transaction, product);
                         case DEPOSIT:
-                            // Aplica el depósito directamente en productos bancarios (cuentas de ahorro, corriente, etc.).
+                            // Aplica el depósito directamente en productos bancarios (c. de ahorro, corriente, etc.).
                             return handleBankTransaction(transaction, product);
                         default:
-                            // Rechaza cualquier tipo de transacción no soportada por el sistema.
-                            return Mono.error(new IllegalArgumentException(Constants.ERROR_UNSUPPORTED_TRANSACTION_TYPE));
+                            // Rechaza transacciones no soportadas por el sistema.
+                            return Mono.error(
+                                    new IllegalArgumentException(Constants.ERROR_UNSUPPORTED_TRANSACTION_TYPE));
                     }
                 });
     }
 
     public Mono<Void> applyMonthlyMaintenanceFee() {
         // Simula una ejecución mensual para aplicar la comisión de mantenimiento
-        return Utils.getProductService().get()
+        return Utils.getProductService().get().get()
                 .uri("/products")
                 .retrieve()
                 .bodyToMono(BankProductResponse.class)
@@ -149,7 +151,7 @@ public class TransactionServiceImpl implements TransactionService {
                             .dateTime(LocalDateTime.now())
                             .build();
 
-                    return Utils.getProductService().put()
+                    return Utils.getProductService().get().put()
                             .uri("/products/{id}", product.getId())
                             .bodyValue(product)
                             .retrieve()
@@ -207,7 +209,9 @@ public class TransactionServiceImpl implements TransactionService {
         if (product.getType() == ProductType.PLAZO_FIJO && product.getAllowedTransactionDay() != null) {
             int today = LocalDate.now().getDayOfMonth();
             if (today != product.getAllowedTransactionDay()) {
-                return Mono.error(new IllegalArgumentException(String.format(Constants.ERROR_FIXED_TERM_WRONG_DAY, product.getAllowedTransactionDay())));
+                return Mono.error(
+                        new IllegalArgumentException(String.format(
+                                Constants.ERROR_FIXED_TERM_WRONG_DAY, product.getAllowedTransactionDay())));
             }
         }
 
@@ -230,7 +234,8 @@ public class TransactionServiceImpl implements TransactionService {
                         }
                         newBalance = balance.subtract(tx.getAmount());
                     } else {
-                        return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_BANK_ACCOUNT));
+                        return Mono.error(
+                                new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_BANK_ACCOUNT));
                     }
 
                     product.setBalance(newBalance);
@@ -240,7 +245,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     private Mono<Transaction> updateProductAndSaveTransaction(BankProductDTO product, Transaction tx) {
         //Actualiza el producto y registra una nueva transaccion
-            return Utils.getProductService().put()
+            return Utils.getProductService().get().put()
                 .uri("/products/{id}", product.getId())
                 .bodyValue(product)
                 .retrieve()

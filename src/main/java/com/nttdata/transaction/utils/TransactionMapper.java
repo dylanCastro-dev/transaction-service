@@ -3,7 +3,12 @@ package com.nttdata.transaction.utils;
 import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import com.nttdata.transaction.model.Transaction;
 import com.nttdata.transaction.model.Type.TransactionType;
-import org.openapitools.model.*;
+import org.openapitools.model.AvailableBalanceResponse;
+import org.openapitools.model.AvailableBalanceResponseBalance;
+import org.openapitools.model.TemplateResponse;
+import org.openapitools.model.TransactionBody;
+import org.openapitools.model.TransactionResponse;
+
 
 import java.time.ZoneOffset;
 import java.util.List;
@@ -80,7 +85,9 @@ public class TransactionMapper {
                 .balance(null);
     }
 
-    public static AvailableBalanceResponse toResponseAvailableBalance(AvailableBalanceDTO dto, int status, String message) {
+    public static AvailableBalanceResponse toResponseAvailableBalance(AvailableBalanceDTO dto,
+                                                                      int status,
+                                                                      String message) {
         return new AvailableBalanceResponse()
                 .status(status)
                 .message(message)

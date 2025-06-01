@@ -1,12 +1,14 @@
 package com.nttdata.transaction.model.Dto;
 
 import com.nttdata.transaction.model.Type.ProductType;
+import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @Data
+@Builder
 public class BankProductDTO {
     private String id;
     private String customerId;

@@ -9,12 +9,12 @@ import org.openapitools.api.TransactionsApi;
 import org.openapitools.model.AvailableBalanceResponse;
 import org.openapitools.model.TemplateResponse;
 import org.openapitools.model.TransactionBody;
-import org.openapitools.model.TransactionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -30,14 +30,20 @@ public class TransactionController implements TransactionsApi {
     public Mono<ResponseEntity<TemplateResponse>> getAllTransactions(ServerWebExchange exchange) {
         return service.getAll()
                 .collectList()
-                .map(transactions -> TransactionMapper.toResponse(transactions, 200, Constants.SUCCESS_FIND_LIST_TRANSACTION))
+                .map(transactions ->
+                        TransactionMapper.toResponse(transactions,
+                                200,
+                                Constants.SUCCESS_FIND_LIST_TRANSACTION))
                 .map(ResponseEntity::ok);
     }
 
     @Override
     public Mono<ResponseEntity<TemplateResponse>> getTransactionById(String id, ServerWebExchange exchange) {
         return service.getById(id)
-                .map(transaction -> TransactionMapper.toResponse(transaction, 200, Constants.SUCCESS_FIND_TRANSACTION))
+                .map(transaction ->
+                        TransactionMapper.toResponse(transaction,
+                                200,
+                                Constants.SUCCESS_FIND_TRANSACTION))
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(TransactionMapper.toResponse(404, Constants.ERROR_FIND_TRANSACTION)));
@@ -52,7 +58,9 @@ public class TransactionController implements TransactionsApi {
                 .doOnNext(Utils::validateTransactionBody)
                 .map(TransactionMapper::toTransaction)
                 .flatMap(service::create)
-                .map(created -> TransactionMapper.toResponse(created, 201, Constants.SUCCESS_CREATE_TRANSACTION))
+                .map(created -> TransactionMapper.toResponse(created,
+                        201,
+                        Constants.SUCCESS_CREATE_TRANSACTION))
                 .map(ResponseEntity::ok);
     }
 
@@ -65,31 +73,42 @@ public class TransactionController implements TransactionsApi {
                 .doOnNext(Utils::validateTransactionBody)
                 .map(TransactionMapper::toTransaction)
                 .flatMap(transaction -> service.update(id, transaction))
-                .map(updated -> TransactionMapper.toResponse(updated, 200, Constants.SUCCESS_UPDATE_TRANSACTION))
+                .map(updated -> TransactionMapper.toResponse(updated,
+                        200,
+                        Constants.SUCCESS_UPDATE_TRANSACTION))
                 .map(ResponseEntity::ok);
     }
 
     @Override
     public Mono<ResponseEntity<TemplateResponse>> deleteTransaction(String id, ServerWebExchange exchange) {
         return service.delete(id)
-                .thenReturn(TransactionMapper.toResponse(200, Constants.SUCCESS_DELETE_TRANSACTION))
+                .thenReturn(TransactionMapper.toResponse(200,
+                        Constants.SUCCESS_DELETE_TRANSACTION))
                 .map(ResponseEntity::ok);
     }
 
     @Override
-    public Mono<ResponseEntity<TemplateResponse>> getTransactionsByProduct(String productId, ServerWebExchange exchange) {
+    public Mono<ResponseEntity<TemplateResponse>> getTransactionsByProduct
+            (String productId, ServerWebExchange exchange) {
         return service.getByProductId(productId)
                 .collectList()
-                .map(transactions -> TransactionMapper.toResponse(transactions, 200, Constants.SUCCESS_FIND_LIST_TRANSACTION_BY_PRODUCT))
+                .map(transactions ->
+                        TransactionMapper.toResponse(transactions,
+                                200,
+                                Constants.SUCCESS_FIND_LIST_TRANSACTION_BY_PRODUCT))
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(TransactionMapper.toResponse(404, Constants.ERROR_FIND_TRANSACTION)));
     }
 
     @Override
-    public Mono<ResponseEntity<AvailableBalanceResponse>> getAvailableBalance(String productId, ServerWebExchange exchange) {
+    public Mono<ResponseEntity<AvailableBalanceResponse>> getAvailableBalance
+            (String productId, ServerWebExchange exchange) {
         return service.getAvailableBalance(productId)
-                .map(balance -> TransactionMapper.toResponseAvailableBalance(balance, 200, Constants.SUCCESS_GET_BALANCE))
+                .map(balance ->
+                        TransactionMapper.toResponseAvailableBalance(balance,
+                                200,
+                                Constants.SUCCESS_GET_BALANCE))
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(TransactionMapper.toResponseAvailableBalance(404, Constants.ERROR_FIND_TRANSACTION)));
@@ -98,7 +117,9 @@ public class TransactionController implements TransactionsApi {
     @Override
     public Mono<ResponseEntity<TemplateResponse>> applyMonthlyFee(ServerWebExchange exchange) {
         return service.applyMonthlyMaintenanceFee()
-                .map(transactions -> TransactionMapper.toResponse(200, Constants.SUCCESS_APPLY_MONTHLY_FEE))
+                .map(transactions ->
+                        TransactionMapper.toResponse(200,
+                                Constants.SUCCESS_APPLY_MONTHLY_FEE))
                 .map(ResponseEntity::ok);
     }
 }

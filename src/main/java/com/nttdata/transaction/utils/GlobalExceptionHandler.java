@@ -2,7 +2,6 @@ package com.nttdata.transaction.utils;
 
 import org.openapitools.model.AvailableBalanceResponse;
 import org.openapitools.model.TemplateResponse;
-import org.openapitools.model.TransactionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

@@ -7,16 +7,22 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
+import java.util.function.Supplier;
 
 public class Utils {
     private static final Logger log = LoggerFactory.getLogger(Utils.class);
 
-    private static final WebClient PRODUCT_CLIENT = WebClient.builder()
-            .baseUrl("http://localhost:8081") // URL de product-service
-            .build();
+    private static Supplier<WebClient> productService =
+            () -> WebClient.builder()
+                    .baseUrl("http://localhost:8081") // URL del customer-service
+                    .build();
 
-    public static WebClient getProductService() {
-        return PRODUCT_CLIENT;
+    public static void setProductService(Supplier<WebClient> supplier) {
+        productService = supplier;
+    }
+
+    public static Supplier<WebClient> getProductService() {
+        return productService;
     }
 
     public static void validateTransactionBody(TransactionBody body) {
