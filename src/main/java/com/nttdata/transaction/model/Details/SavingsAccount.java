@@ -14,4 +14,5 @@ import org.springframework.data.annotation.TypeAlias;
 public class SavingsAccount implements ProductDetails {
     private Double maintenanceFee;
     private Integer monthlyLimit;
+    private Double requiredMonthlyAverageBalance;
 }

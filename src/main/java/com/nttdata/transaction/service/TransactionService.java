@@ -1,6 +1,5 @@
 package com.nttdata.transaction.service;
 
-import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import com.nttdata.transaction.model.Transaction;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -49,15 +48,6 @@ public interface TransactionService {
     Mono<Void> delete(String id);
 
     /**
-     * Obtiene el saldo disponible de un producto bancario.
-     * Para productos de crédito, calcula el disponible como límite menos deuda actual.
-     *
-     * @param productId Identificador del producto bancario
-     * @return Mono con el saldo disponible
-     */
-    Mono<AvailableBalanceDTO> getAvailableBalance(String productId);
-
-    /**
      * Registra una nueva transacción en el sistema, aplicando las reglas de negocio correspondientes
      * según el tipo de producto y tipo de transacción.
      *
@@ -65,12 +55,5 @@ public interface TransactionService {
      * @return Mono con la transacción registrada
      */
     Mono<Transaction> create(Transaction transaction);
-
-    /**
-     * Simula una ejecución mensual para aplicar la comisión de mantenimiento
-     * a todos los productos que tienen un monto de mantenimiento mayor a 0.
-     * Registra una transacción por la comisión y actualiza el saldo del producto.
-     */
-    public Mono<Void> applyMonthlyMaintenanceFee();
 }
 

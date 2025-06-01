@@ -23,7 +23,7 @@ public class Constants {
     public static final String SUCCESS_GET_BALANCE =
             "Saldo disponible obtenido correctamente.";
     public static final String SUCCESS_APPLY_MONTHLY_FEE =
-            "Comisión mensual aplicada correctamente.";
+            "Tareas mensuales completadas correctamente.";
     public static final String ERROR_INTERNAL  =
             "Hubo un problema con la solicitud";
     public static final String ERROR_VALIDATION_MESSAGE =

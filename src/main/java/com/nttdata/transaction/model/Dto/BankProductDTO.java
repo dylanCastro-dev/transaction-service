@@ -7,6 +7,7 @@ import com.nttdata.transaction.model.Details.FixedTermAccount;
 import com.nttdata.transaction.model.Details.ProductDetails;
 import com.nttdata.transaction.model.Details.SavingsAccount;
 import com.nttdata.transaction.model.Details.CreditProduct;
+import com.nttdata.transaction.model.Type.ProductStatus;
 import com.nttdata.transaction.model.Type.ProductType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,6 +25,7 @@ public class BankProductDTO {
     private String id;
     private String customerId;
     private ProductType type;
+    private ProductStatus status;
     private String name;
     private BigDecimal balance;
     private List<String> holders;

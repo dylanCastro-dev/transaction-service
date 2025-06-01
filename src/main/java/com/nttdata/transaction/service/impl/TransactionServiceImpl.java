@@ -1,23 +1,20 @@
 package com.nttdata.transaction.service.impl;
 
 import com.nttdata.transaction.model.Details.CreditProduct;
-import com.nttdata.transaction.model.Details.CurrentAccount;
 import com.nttdata.transaction.model.Details.ProductDetails;
 import com.nttdata.transaction.model.Details.SavingsAccount;
 import com.nttdata.transaction.model.Details.FixedTermAccount;
-import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import com.nttdata.transaction.model.Dto.BankProductDTO;
-import com.nttdata.transaction.model.Dto.BankProductResponse;
 import com.nttdata.transaction.model.Transaction;
 import com.nttdata.transaction.model.Type.ProductType;
 import com.nttdata.transaction.model.Type.TransactionType;
 import com.nttdata.transaction.repository.TransactionRepository;
+import com.nttdata.transaction.service.ProductService;
 import com.nttdata.transaction.service.TransactionService;
 import com.nttdata.transaction.utils.Constants;
-import com.nttdata.transaction.utils.EmptyResultException;
-import com.nttdata.transaction.utils.Utils;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -26,12 +23,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
+    private static final Logger log = LoggerFactory.getLogger(TransactionServiceImpl.class);
     private final TransactionRepository repository;
+    private final ProductService productService;
 
     @Override
     public Flux<Transaction> getAll() {
@@ -65,46 +63,10 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    public Mono<AvailableBalanceDTO> getAvailableBalance(String productId) {
-        return Utils.getProductService().get().get()
-                .uri("/products/{id}", productId)
-                .retrieve()
-                .onStatus(HttpStatus::is4xxClientError, response -> {
-                    if (response.statusCode() == HttpStatus.NOT_FOUND) {
-                        return Mono.error(new EmptyResultException(Constants.ERROR_FIND_PRODUCT));
-                    }
-                    return Mono.error(new RuntimeException("Error en la solicitud: " + response.statusCode()));
-                })
-                .bodyToMono(BankProductResponse.class)
-                .map(response -> {
-                    BankProductDTO product = response.getProducts().get(0);
-                    BigDecimal balance = product.getBalance() != null ? product.getBalance() : BigDecimal.ZERO;
-
-                    if (isCreditCard(product.getType())) {
-                        CreditProduct detailsCreditProduct = (CreditProduct) product.getDetails();
-                        BigDecimal available = detailsCreditProduct.getCreditLimit().subtract(balance);
-                        return new AvailableBalanceDTO(product.getId(), available, "CREDIT");
-                    } else {
-                        return new AvailableBalanceDTO(product.getId(), balance, "BANK");
-                    }
-                });
-
-    }
-
-    @Override
     public Mono<Transaction> create(Transaction transaction) {
         transaction.setDateTime(LocalDateTime.now());
 
-        return Utils.getProductService().get().get()
-                .uri("/products/{id}", transaction.getProductId())
-                .retrieve()
-                .onStatus(HttpStatus::is4xxClientError, response -> {
-                    if (response.statusCode() == HttpStatus.NOT_FOUND) {
-                        return Mono.error(new EmptyResultException(Constants.ERROR_FIND_PRODUCT));
-                    }
-                    return Mono.error(new RuntimeException("Error en la solicitud: " + response.statusCode()));
-                })
-                .bodyToMono(BankProductResponse.class)
+        return  productService.fetchProductById(transaction.getProductId())
                 .flatMap(response -> {
                     BankProductDTO product = response.getProducts().get(0);
                     switch (transaction.getType()) {
@@ -127,69 +89,6 @@ public class TransactionServiceImpl implements TransactionService {
                                     new IllegalArgumentException(Constants.ERROR_UNSUPPORTED_TRANSACTION_TYPE));
                     }
                 });
-    }
-
-    public Mono<Void> applyMonthlyMaintenanceFee() {
-        return Utils.getProductService().get().get()
-                .uri("/products")
-                .retrieve()
-                .bodyToMono(BankProductResponse.class)
-                .flatMapMany(response -> Flux.fromIterable(response.getProducts()))
-                .filterWhen(this::hasValidMaintenanceFee)
-                .flatMap(this::applyFeeIfBalanceSufficient)
-                .then();
-    }
-
-    private Mono<Boolean> hasValidMaintenanceFee(BankProductDTO product) {
-        ProductDetails details = product.getDetails();
-        Double fee = null;
-
-        if (details instanceof CurrentAccount) {
-            fee = ((CurrentAccount) details).getMaintenanceFee();
-        } else if (details instanceof SavingsAccount) {
-            fee = ((SavingsAccount) details).getMaintenanceFee();
-        } else if (details instanceof FixedTermAccount) {
-            fee = ((FixedTermAccount) details).getMaintenanceFee();
-        }
-
-        return Mono.just(fee != null && fee > 0);
-    }
-
-    private Mono<Void> applyFeeIfBalanceSufficient(BankProductDTO product) {
-        ProductDetails details = product.getDetails();
-        Double feeValue = 0.0;
-
-        if (details instanceof CurrentAccount) {
-            feeValue = ((CurrentAccount) details).getMaintenanceFee();
-        } else if (details instanceof SavingsAccount) {
-            feeValue = ((SavingsAccount) details).getMaintenanceFee();
-        } else if (details instanceof FixedTermAccount) {
-            feeValue = ((FixedTermAccount) details).getMaintenanceFee();
-        }
-
-        BigDecimal fee = BigDecimal.valueOf(feeValue);
-        BigDecimal balance = Optional.ofNullable(product.getBalance()).orElse(BigDecimal.ZERO);
-
-        if (balance.compareTo(fee) < 0) {
-            return Mono.empty(); // Sin saldo suficiente
-        }
-
-        product.setBalance(balance.subtract(fee));
-
-        Transaction tx = Transaction.builder()
-                .productId(product.getId())
-                .amount(fee)
-                .type(TransactionType.MAINTENANCE)
-                .dateTime(LocalDateTime.now())
-                .build();
-
-        return Utils.getProductService().get().put()
-                .uri("/products/{id}", product.getId())
-                .bodyValue(product)
-                .retrieve()
-                .bodyToMono(BankProductResponse.class)
-                .flatMap(r -> repository.save(tx))
-                .then();
     }
 
     private Mono<Transaction> handleCreditPayment(Transaction tx, BankProductDTO product) {
@@ -276,14 +175,9 @@ public class TransactionServiceImpl implements TransactionService {
 
     private Mono<Transaction> updateProductAndSaveTransaction(BankProductDTO product, Transaction tx) {
         //Actualiza el producto y registra una nueva transaccion
-            return Utils.getProductService().get().put()
-                .uri("/products/{id}", product.getId())
-                .bodyValue(product)
-                .retrieve()
-                .bodyToMono(BankProductResponse.class)
+            return productService.updateProduct(product)
                 .flatMap(response -> {
-                    BankProductDTO updated = response.getProducts().get(0);
-                    return repository.save(tx); // Puedes usar `updated` si lo necesitas
+                    return repository.save(tx);
                 });
     }
 
