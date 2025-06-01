@@ -66,7 +66,7 @@ public class TransactionServiceImplTest {
                 .type(ProductType.SAVINGS)
                 .name("Cuenta de Ahorro")
                 .balance(BigDecimal.valueOf(1000))
-                .details(new SavingsAccount(10.0, 10, 0.0)) // ✅ aquí colocas los campos específicos
+                .details(new SavingsAccount(10.0, 10, 0.0, 0, 0.0))
                 .holders(List.of("holder1"))
                 .signers(List.of("signer1"))
                 .build();
@@ -138,7 +138,7 @@ public class TransactionServiceImplTest {
                 .type(ProductType.SAVINGS)
                 .name("Cuenta de Ahorro")
                 .balance(BigDecimal.valueOf(1000))
-                .details(new SavingsAccount(10.0, 10, 0.0))
+                .details(new SavingsAccount(10.0, 10, 0.0, 0, 0.0))
                 .holders(List.of("holder1"))
                 .signers(List.of("signer1"))
                 .build();
@@ -210,7 +210,7 @@ public class TransactionServiceImplTest {
                 .expectNextMatches(dto ->
                         dto.getProductId().equals("prod-1") &&
                                 dto.getAvailableBalance().compareTo(BigDecimal.valueOf(850)) == 0 &&
-                                dto.getProductCategory().equals("BANK")
+                                dto.getProductCategory().equals("SAVINGS")
                 )
                 .verifyComplete();
     }
@@ -224,7 +224,7 @@ public class TransactionServiceImplTest {
                 .type(ProductType.SAVINGS)
                 .name("Cuenta de Ahorro")
                 .balance(BigDecimal.valueOf(1000))
-                .details(new SavingsAccount(10.0, 10, 0.0))
+                .details(new SavingsAccount(10.0, 10, 0.0, 0, 0.0))
                 .holders(List.of("holder1"))
                 .signers(List.of("signer1"))
                 .build();

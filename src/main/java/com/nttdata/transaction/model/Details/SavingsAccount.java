@@ -15,4 +15,6 @@ public class SavingsAccount implements ProductDetails {
     private Double maintenanceFee;
     private Integer monthlyLimit;
     private Double requiredMonthlyAverageBalance;
+    private Integer freeMonthlyTransactionLimit;
+    private Double transactionFee;
 }

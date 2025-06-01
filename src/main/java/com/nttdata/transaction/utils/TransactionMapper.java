@@ -10,6 +10,7 @@ import org.openapitools.model.TransactionBody;
 import org.openapitools.model.TransactionResponse;
 
 
+import java.math.BigDecimal;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,6 +41,7 @@ public class TransactionMapper {
         body.setProductId(transaction.getProductId());
         body.setType(transaction.getType().name());
         body.setAmount(transaction.getAmount());
+        body.setTransactionFee(BigDecimal.valueOf(transaction.getTransactionFee()));
         body.setDateTime(transaction.getDateTime().atOffset(ZoneOffset.UTC));
         return body;
     }

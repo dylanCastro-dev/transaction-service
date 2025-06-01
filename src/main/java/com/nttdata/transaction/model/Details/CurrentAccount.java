@@ -14,4 +14,6 @@ import org.springframework.data.annotation.TypeAlias;
 public class CurrentAccount implements ProductDetails {
     private Double maintenanceFee;
     private Integer monthlyLimit;
+    private Integer freeMonthlyTransactionLimit;
+    private Double transactionFee;
 }

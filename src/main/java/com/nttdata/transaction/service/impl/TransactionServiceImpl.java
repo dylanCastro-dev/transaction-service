@@ -1,9 +1,11 @@
 package com.nttdata.transaction.service.impl;
 
+
 import com.nttdata.transaction.model.Details.CreditProduct;
-import com.nttdata.transaction.model.Details.ProductDetails;
-import com.nttdata.transaction.model.Details.SavingsAccount;
 import com.nttdata.transaction.model.Details.FixedTermAccount;
+import com.nttdata.transaction.model.Details.SavingsAccount;
+import com.nttdata.transaction.model.Details.CurrentAccount;
+import com.nttdata.transaction.model.Details.ProductDetails;
 import com.nttdata.transaction.model.Dto.BankProductDTO;
 import com.nttdata.transaction.model.Transaction;
 import com.nttdata.transaction.model.Type.ProductType;
@@ -127,51 +129,117 @@ public class TransactionServiceImpl implements TransactionService {
         return updateProductAndSaveTransaction(product, tx);
     }
 
+    /**
+     * Maneja transacciones para productos bancarios (cuentas de ahorro, corriente, etc.).
+     */
     private Mono<Transaction> handleBankTransaction(Transaction tx, BankProductDTO product) {
-        //Funcion que maneja transacciones de cuentas bancarias
+        return Mono.empty()
+                //Valida que el producto sea de tipo bancario.
+                .then(validateBankAccountType(product))
+                //Valida que una cuenta a plazo fijo solo permita transacción en el día permitido.
+                .then(validateFixedTermAccountRestrictions(product))
+                //Valida que el número de transacciones mensuales permitidas no se haya superado.
+                .then(validateMonthlyTransactionLimit(product))
+                // Se aplica la lógica para verificar y calcular la comisión si excede el límite
+                .then(applyTransactionFeeIfExceeded(tx, product))
+                //Realiza el cálculo del nuevo saldo y actualiza el producto, guardando la transacción.
+                .flatMap(valid -> processTransactionAndUpdate(tx, product));
+    }
+
+    private Mono<Void> validateBankAccountType(BankProductDTO product) {
         if (!isBankAccount(product.getType())) {
             return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_PRODUCT));
         }
+        return Mono.empty();
+    }
 
-        // Validación: Si es cuenta de plazo fijo, solo permite transacción en un día específico
-        if (product.getType() == ProductType.FIXED_TERM) {
-            FixedTermAccount detailsFixedTermAccount = (FixedTermAccount) product.getDetails();
-            int today = LocalDate.now().getDayOfMonth();
-            if (today != detailsFixedTermAccount.getAllowedTransactionDay()) {
-                return Mono.error(
-                        new IllegalArgumentException(String.format(
-                                Constants.ERROR_FIXED_TERM_WRONG_DAY,
-                                detailsFixedTermAccount.getAllowedTransactionDay())));
-            }
+    private Mono<Void> validateFixedTermAccountRestrictions(BankProductDTO product) {
+        if (product.getType() != ProductType.FIXED_TERM) {
+            return Mono.empty();
         }
 
-        //Valida el limite de movimientos mensuales que tiene la cuenta
-        return  canPerformTransaction(product)
+        FixedTermAccount details = (FixedTermAccount) product.getDetails();
+        int today = LocalDate.now().getDayOfMonth();
+
+        if (today != details.getAllowedTransactionDay()) {
+            return Mono.error(new IllegalArgumentException(
+                    String.format(Constants.ERROR_FIXED_TERM_WRONG_DAY, details.getAllowedTransactionDay())));
+        }
+
+        return Mono.empty();
+    }
+
+    private Mono<Void> validateMonthlyTransactionLimit(BankProductDTO product) {
+        return canPerformTransaction(product)
                 .flatMap(canProceed -> {
                     if (!canProceed) {
                         return Mono.error(new IllegalArgumentException(Constants.ERROR_MONTHLY_LIMIT_REACHED));
                     }
-
-                    BigDecimal balance = safeBalance(product);
-                    BigDecimal newBalance;
-
-                    //Realiza los calculos por si es un deposito o un retiro para luego actualizar el producto
-                    if (tx.getType() == TransactionType.DEPOSIT) {
-                        newBalance = balance.add(tx.getAmount());
-                    } else if (tx.getType() == TransactionType.WITHDRAWAL) {
-                        if (tx.getAmount().compareTo(balance) > 0) {
-                            return Mono.error(new IllegalArgumentException(Constants.ERROR_INSUFFICIENT_FUNDS));
-                        }
-                        newBalance = balance.subtract(tx.getAmount());
-                    } else {
-                        return Mono.error(
-                                new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_BANK_ACCOUNT));
-                    }
-
-                    product.setBalance(newBalance);
-                    return updateProductAndSaveTransaction(product, tx);
+                    return Mono.empty();
                 });
     }
+
+    private Mono<Transaction> processTransactionAndUpdate(Transaction tx, BankProductDTO product) {
+        BigDecimal balance = safeBalance(product);
+        BigDecimal fee = tx.getTransactionFee() != null ? BigDecimal.valueOf(tx.getTransactionFee()) : BigDecimal.ZERO;
+        BigDecimal newBalance;
+
+        if (tx.getType() == TransactionType.DEPOSIT) {
+            // El depósito se reduce por la comisión cobrada
+            BigDecimal netAmount = tx.getAmount().subtract(fee);
+            newBalance = balance.add(netAmount);
+        } else if (tx.getType() == TransactionType.WITHDRAWAL) {
+            // El retiro se incrementa por la comisión
+            BigDecimal totalWithdrawal = tx.getAmount().add(fee);
+            if (totalWithdrawal.compareTo(balance) > 0) {
+                return Mono.error(new IllegalArgumentException(Constants.ERROR_INSUFFICIENT_FUNDS));
+            }
+            newBalance = balance.subtract(totalWithdrawal);
+        } else {
+            return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_BANK_ACCOUNT));
+        }
+
+        product.setBalance(newBalance);
+        return updateProductAndSaveTransaction(product, tx);
+    }
+
+    private Mono<Transaction> applyTransactionFeeIfExceeded(Transaction tx, BankProductDTO product) {
+        if (!(product.getDetails() instanceof SavingsAccount || product.getDetails() instanceof CurrentAccount)) {
+            return Mono.just(tx);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = now.withDayOfMonth(1).with(LocalTime.MIN);
+        LocalDateTime end = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).with(LocalTime.MAX);
+
+        return repository.findByProductIdAndDateTimeBetween(product.getId(), start, end)
+                .count()
+                .map(count -> {
+                    ProductDetails details = product.getDetails();
+
+                    Integer freeLimit = null;
+                    Double fee = null;
+
+                    if (details instanceof SavingsAccount) {
+                        SavingsAccount sa = (SavingsAccount) details;
+                        freeLimit = sa.getFreeMonthlyTransactionLimit();
+                        fee = sa.getTransactionFee();
+                    } else if (details instanceof CurrentAccount) {
+                        CurrentAccount ca = (CurrentAccount) details;
+                        freeLimit = ca.getFreeMonthlyTransactionLimit();
+                        fee = ca.getTransactionFee();
+                    }
+
+                    if (freeLimit != null && fee != null && fee > 0 && count >= freeLimit) {
+                        tx.setTransactionFee(fee);
+                    } else {
+                        tx.setTransactionFee(0.0);
+                    }
+
+                    return tx;
+                });
+    }
+
 
     private Mono<Transaction> updateProductAndSaveTransaction(BankProductDTO product, Transaction tx) {
         //Actualiza el producto y registra una nueva transaccion
