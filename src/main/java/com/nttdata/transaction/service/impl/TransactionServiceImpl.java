@@ -1,5 +1,10 @@
 package com.nttdata.transaction.service.impl;
 
+import com.nttdata.transaction.model.Details.CreditProduct;
+import com.nttdata.transaction.model.Details.CurrentAccount;
+import com.nttdata.transaction.model.Details.ProductDetails;
+import com.nttdata.transaction.model.Details.SavingsAccount;
+import com.nttdata.transaction.model.Details.FixedTermAccount;
 import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import com.nttdata.transaction.model.Dto.BankProductDTO;
 import com.nttdata.transaction.model.Dto.BankProductResponse;
@@ -75,8 +80,9 @@ public class TransactionServiceImpl implements TransactionService {
                     BankProductDTO product = response.getProducts().get(0);
                     BigDecimal balance = product.getBalance() != null ? product.getBalance() : BigDecimal.ZERO;
 
-                    if (isCreditCard(product.getType()) && product.getCreditLimit() != null) {
-                        BigDecimal available = product.getCreditLimit().subtract(balance);
+                    if (isCreditCard(product.getType())) {
+                        CreditProduct detailsCreditProduct = (CreditProduct) product.getDetails();
+                        BigDecimal available = detailsCreditProduct.getCreditLimit().subtract(balance);
                         return new AvailableBalanceDTO(product.getId(), available, "CREDIT");
                     } else {
                         return new AvailableBalanceDTO(product.getId(), balance, "BANK");
@@ -124,49 +130,71 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     public Mono<Void> applyMonthlyMaintenanceFee() {
-        // Simula una ejecución mensual para aplicar la comisión de mantenimiento
         return Utils.getProductService().get().get()
                 .uri("/products")
                 .retrieve()
                 .bodyToMono(BankProductResponse.class)
                 .flatMapMany(response -> Flux.fromIterable(response.getProducts()))
-                .filter(product -> {
-                    Double fee = product.getMaintenanceFee();
-                    return fee != null && fee > 0;
-                })
-                .flatMap(product -> {
-                    BigDecimal fee = BigDecimal.valueOf(product.getMaintenanceFee());
-                    BigDecimal balance = Optional.ofNullable(product.getBalance()).orElse(BigDecimal.ZERO);
+                .filterWhen(this::hasValidMaintenanceFee)
+                .flatMap(this::applyFeeIfBalanceSufficient)
+                .then();
+    }
 
-                    if (balance.compareTo(fee) < 0) {
-                        return Mono.empty(); // Sin saldo suficiente
-                    }
+    private Mono<Boolean> hasValidMaintenanceFee(BankProductDTO product) {
+        ProductDetails details = product.getDetails();
+        Double fee = null;
 
-                    product.setBalance(balance.subtract(fee));
+        if (details instanceof CurrentAccount) {
+            fee = ((CurrentAccount) details).getMaintenanceFee();
+        } else if (details instanceof SavingsAccount) {
+            fee = ((SavingsAccount) details).getMaintenanceFee();
+        } else if (details instanceof FixedTermAccount) {
+            fee = ((FixedTermAccount) details).getMaintenanceFee();
+        }
 
-                    Transaction tx = Transaction.builder()
-                            .productId(product.getId())
-                            .amount(fee)
-                            .type(TransactionType.MAINTENANCE)
-                            .dateTime(LocalDateTime.now())
-                            .build();
+        return Mono.just(fee != null && fee > 0);
+    }
 
-                    return Utils.getProductService().get().put()
-                            .uri("/products/{id}", product.getId())
-                            .bodyValue(product)
-                            .retrieve()
-                            .bodyToMono(BankProductResponse.class)
-                            .flatMap(response -> {
-                                return repository.save(tx);
-                            })
-                            .then();
-                })
+    private Mono<Void> applyFeeIfBalanceSufficient(BankProductDTO product) {
+        ProductDetails details = product.getDetails();
+        Double feeValue = 0.0;
+
+        if (details instanceof CurrentAccount) {
+            feeValue = ((CurrentAccount) details).getMaintenanceFee();
+        } else if (details instanceof SavingsAccount) {
+            feeValue = ((SavingsAccount) details).getMaintenanceFee();
+        } else if (details instanceof FixedTermAccount) {
+            feeValue = ((FixedTermAccount) details).getMaintenanceFee();
+        }
+
+        BigDecimal fee = BigDecimal.valueOf(feeValue);
+        BigDecimal balance = Optional.ofNullable(product.getBalance()).orElse(BigDecimal.ZERO);
+
+        if (balance.compareTo(fee) < 0) {
+            return Mono.empty(); // Sin saldo suficiente
+        }
+
+        product.setBalance(balance.subtract(fee));
+
+        Transaction tx = Transaction.builder()
+                .productId(product.getId())
+                .amount(fee)
+                .type(TransactionType.MAINTENANCE)
+                .dateTime(LocalDateTime.now())
+                .build();
+
+        return Utils.getProductService().get().put()
+                .uri("/products/{id}", product.getId())
+                .bodyValue(product)
+                .retrieve()
+                .bodyToMono(BankProductResponse.class)
+                .flatMap(r -> repository.save(tx))
                 .then();
     }
 
     private Mono<Transaction> handleCreditPayment(Transaction tx, BankProductDTO product) {
         //Funcion que maneja el pago de dinero de tarjetas de credito
-        if (!isProductoCredito(product.getType())) {
+        if (!isCreditCard(product.getType())) {
             return Mono.error(new IllegalArgumentException(Constants.ERROR_PAYMENT_ONLY_FOR_CREDIT_PRODUCTS));
         }
 
@@ -184,14 +212,15 @@ public class TransactionServiceImpl implements TransactionService {
 
     private Mono<Transaction> handleCreditCardWithdrawal(Transaction tx, BankProductDTO product) {
         //Funcion que maneja retiro de dinero de tarjetas de credito
-        if (product.getCreditLimit() == null) {
+        CreditProduct detailsCreditProduct = (CreditProduct) product.getDetails();
+        if (detailsCreditProduct.getCreditLimit() == null) {
             return Mono.error(new IllegalArgumentException(Constants.ERROR_CREDIT_LIMIT_NOT_DEFINED));
         }
 
         BigDecimal balance = safeBalance(product);
         BigDecimal newBalance = balance.add(tx.getAmount());
 
-        if (newBalance.compareTo(product.getCreditLimit()) > 0) {
+        if (newBalance.compareTo(detailsCreditProduct.getCreditLimit()) > 0) {
             return Mono.error(new IllegalArgumentException(Constants.ERROR_AMOUNT_EXCEEDS_CREDIT_LIMIT));
         }
 
@@ -201,17 +230,19 @@ public class TransactionServiceImpl implements TransactionService {
 
     private Mono<Transaction> handleBankTransaction(Transaction tx, BankProductDTO product) {
         //Funcion que maneja transacciones de cuentas bancarias
-        if (!isCuentaBancaria(product.getType())) {
+        if (!isBankAccount(product.getType())) {
             return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_PRODUCT));
         }
 
         // Validación: Si es cuenta de plazo fijo, solo permite transacción en un día específico
-        if (product.getType() == ProductType.PLAZO_FIJO && product.getAllowedTransactionDay() != null) {
+        if (product.getType() == ProductType.FIXED_TERM) {
+            FixedTermAccount detailsFixedTermAccount = (FixedTermAccount) product.getDetails();
             int today = LocalDate.now().getDayOfMonth();
-            if (today != product.getAllowedTransactionDay()) {
+            if (today != detailsFixedTermAccount.getAllowedTransactionDay()) {
                 return Mono.error(
                         new IllegalArgumentException(String.format(
-                                Constants.ERROR_FIXED_TERM_WRONG_DAY, product.getAllowedTransactionDay())));
+                                Constants.ERROR_FIXED_TERM_WRONG_DAY,
+                                detailsFixedTermAccount.getAllowedTransactionDay())));
             }
         }
 
@@ -263,12 +294,12 @@ public class TransactionServiceImpl implements TransactionService {
 
     private boolean isCreditCard(ProductType type) {
         //Funcion que valida si es una tarjeta de credito
-        return type == ProductType.TARJETA_CREDITO;
+        return type == ProductType.CREDIT;
     }
 
     private Mono<Boolean> canPerformTransaction(BankProductDTO product) {
         //Funcion que valida cuantas transacciones le quedan al producto
-        if (product.getType() == ProductType.CORRIENTE) {
+        if (product.getType() == ProductType.CURRENT) {
             return Mono.just(true); // No hay límite de movimientos
         }
 
@@ -278,21 +309,27 @@ public class TransactionServiceImpl implements TransactionService {
 
         return repository.findByProductIdAndDateTimeBetween(product.getId(), startOfMonth, endOfMonth)
                 .count()
-                .map(count -> count < product.getMonthlyLimit());
+                .map(count -> {
+                    ProductDetails details = product.getDetails();
+                    Integer limit = null;
+
+                    if (details instanceof SavingsAccount) {
+                        limit = ((SavingsAccount) details).getMonthlyLimit();
+                    }
+
+                    if (details instanceof FixedTermAccount) {
+                        limit = ((FixedTermAccount) details).getMonthlyLimit();
+                    }
+
+                    return count < limit;
+                });
     }
 
-    private boolean isCuentaBancaria(ProductType type) {
+    private boolean isBankAccount(ProductType type) {
         //Funcion que valida si la cuenta es bancaria
-        return type == ProductType.AHORRO ||
-                type == ProductType.CORRIENTE ||
-                type == ProductType.PLAZO_FIJO;
-    }
-
-    private boolean isProductoCredito(ProductType type) {
-        //Funcion que valida si el producto es credtio
-        return type == ProductType.CREDITO_PERSONAL
-                || type == ProductType.CREDITO_EMPRESARIAL
-                || type == ProductType.TARJETA_CREDITO;
+        return type == ProductType.SAVINGS ||
+                type == ProductType.CURRENT ||
+                type == ProductType.FIXED_TERM;
     }
 
 }

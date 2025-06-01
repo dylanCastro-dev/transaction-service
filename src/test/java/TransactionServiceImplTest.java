@@ -1,4 +1,5 @@
 
+import com.nttdata.transaction.model.Details.SavingsAccount;
 import com.nttdata.transaction.model.Dto.BankProductDTO;
 import com.nttdata.transaction.model.Dto.BankProductResponse;
 import com.nttdata.transaction.model.Transaction;
@@ -52,16 +53,14 @@ public class TransactionServiceImplTest {
         BankProductDTO product = BankProductDTO.builder()
                 .id("prod-1")
                 .customerId("cust-1")
-                .type(ProductType.AHORRO)
+                .type(ProductType.SAVINGS)
                 .name("Cuenta de Ahorro")
                 .balance(BigDecimal.valueOf(1000))
-                .maintenanceFee(10.0)
-                .monthlyLimit(10)
-                .creditLimit(BigDecimal.valueOf(1500))
+                .details(new SavingsAccount(10.0, 10)) // ✅ aquí colocas los campos específicos
                 .holders(List.of("holder1"))
                 .signers(List.of("signer1"))
-                .allowedTransactionDay(15)
                 .build();
+
 
         // Respuesta simulada
         BankProductResponse mockResponse = mock(BankProductResponse.class);
@@ -125,9 +124,13 @@ public class TransactionServiceImplTest {
         // Producto simulado (tipo bancario)
         BankProductDTO product = BankProductDTO.builder()
                 .id("prod-1")
-                .type(ProductType.AHORRO)
+                .customerId("cust-1")
+                .type(ProductType.SAVINGS)
+                .name("Cuenta de Ahorro")
                 .balance(BigDecimal.valueOf(1000))
-                .monthlyLimit(10)
+                .details(new SavingsAccount(10.0, 10)) // ✅ aquí colocas los campos específicos
+                .holders(List.of("holder1"))
+                .signers(List.of("signer1"))
                 .build();
 
         BankProductResponse mockResponse = Mockito.mock(BankProductResponse.class);
@@ -193,7 +196,7 @@ public class TransactionServiceImplTest {
         // Simular producto con saldo bancario
         BankProductDTO product = BankProductDTO.builder()
                 .id("prod-1")
-                .type(ProductType.AHORRO)
+                .type(ProductType.SAVINGS)
                 .balance(BigDecimal.valueOf(850))
                 .build();
 
@@ -232,10 +235,13 @@ public class TransactionServiceImplTest {
         // Producto con saldo suficiente y comisión
         BankProductDTO product = BankProductDTO.builder()
                 .id("prod-1")
-                .type(ProductType.AHORRO)
-                .balance(BigDecimal.valueOf(100))
-                .maintenanceFee(10.0)
-                .monthlyLimit(5)
+                .customerId("cust-1")
+                .type(ProductType.SAVINGS)
+                .name("Cuenta de Ahorro")
+                .balance(BigDecimal.valueOf(1000))
+                .details(new SavingsAccount(10.0, 10)) // ✅ aquí colocas los campos específicos
+                .holders(List.of("holder1"))
+                .signers(List.of("signer1"))
                 .build();
 
         // Simular respuesta GET /products
