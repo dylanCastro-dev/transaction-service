@@ -45,7 +45,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public Flux<Transaction> getByProductId(String productId) {
-        return repository.findByProductId(productId);
+        return repository.findBySourceProductId(productId);
     }
 
     @Override
@@ -54,7 +54,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .flatMap(existing -> {
                     existing.setType(transaction.getType());
                     existing.setAmount(transaction.getAmount());
-                    existing.setProductId(transaction.getProductId());
+                    existing.setSourceProductId(transaction.getSourceProductId());
                     return repository.save(existing);
                 });
     }
@@ -68,23 +68,30 @@ public class TransactionServiceImpl implements TransactionService {
     public Mono<Transaction> create(Transaction transaction) {
         transaction.setDateTime(LocalDateTime.now());
 
-        return  productService.fetchProductById(transaction.getProductId())
-                .flatMap(response -> {
-                    BankProductDTO product = response.getProducts().get(0);
+        return  productService.fetchProductById(transaction.getSourceProductId())
+                .flatMap(responseSource -> {
+                    BankProductDTO productSource = responseSource.getProducts().get(0);
                     switch (transaction.getType()) {
                         case PAYMENT:
                             // Procesa el pago de un producto de crédito, como préstamos o tarjetas de crédito.
-                            return handleCreditPayment(transaction, product);
+                            return handleCreditPayment(transaction, productSource);
                         case WITHDRAWAL:
                             // Si el producto es una tarjeta de crédito:
                             // Aplica la lógica específica para retiros con crédito.
                             // En caso contrario, maneja el retiro como una transacción bancaria común.
-                            return isCreditCard(product.getType())
-                                    ? handleCreditCardWithdrawal(transaction, product)
-                                    : handleBankTransaction(transaction, product);
+                            return isCreditCard(productSource.getType())
+                                    ? handleCreditCardWithdrawal(transaction, productSource)
+                                    : handleBankTransaction(transaction, productSource, null);
                         case DEPOSIT:
                             // Aplica el depósito directamente en productos bancarios (c. de ahorro, corriente, etc.).
-                            return handleBankTransaction(transaction, product);
+                            return handleBankTransaction(transaction, productSource, null);
+                        case TRANSFER:
+                            //Busca el producto destino
+                            return productService.fetchProductById(transaction.getTargetProductId())
+                                    .flatMap(responseTarget ->{
+                                                BankProductDTO productTarget = responseTarget.getProducts().get(0);
+                                                return handleBankTransaction(transaction, productSource, productTarget);
+                                    });
                         default:
                             // Rechaza transacciones no soportadas por el sistema.
                             return Mono.error(
@@ -107,7 +114,7 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         product.setBalance(balance.subtract(amount));
-        return updateProductAndSaveTransaction(product, tx);
+        return updateProductAndSaveTransaction(product, null, tx);
     }
 
 
@@ -126,24 +133,50 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         product.setBalance(newBalance);
-        return updateProductAndSaveTransaction(product, tx);
+        return updateProductAndSaveTransaction(product, null, tx);
     }
 
     /**
      * Maneja transacciones para productos bancarios (cuentas de ahorro, corriente, etc.).
      */
-    private Mono<Transaction> handleBankTransaction(Transaction tx, BankProductDTO product) {
+    private Mono<Transaction> handleBankTransaction(Transaction tx,
+                                                    BankProductDTO productSource,
+                                                    BankProductDTO productTarget) {
         return Mono.empty()
                 //Valida que el producto sea de tipo bancario.
-                .then(validateBankAccountType(product))
+                .then(validateBankAccountType(productSource))
                 //Valida que una cuenta a plazo fijo solo permita transacción en el día permitido.
-                .then(validateFixedTermAccountRestrictions(product))
+                .then(validateFixedTermAccountRestrictions(productSource))
                 //Valida que el número de transacciones mensuales permitidas no se haya superado.
-                .then(validateMonthlyTransactionLimit(product))
+                .then(validateMonthlyTransactionLimit(productSource))
+                //Valida que la cuentas para las transferencias son validas.
+                .then(validateTransferAccountType(tx, productSource, productTarget))
                 // Se aplica la lógica para verificar y calcular la comisión si excede el límite
-                .then(applyTransactionFeeIfExceeded(tx, product))
+                .then(applyTransactionFeeIfExceeded(tx, productSource))
                 //Realiza el cálculo del nuevo saldo y actualiza el producto, guardando la transacción.
-                .flatMap(valid -> processTransactionAndUpdate(tx, product));
+                .flatMap(valid -> processTransactionAndUpdate(tx, productSource, productTarget));
+    }
+
+    private Mono<Void> validateTransferAccountType(Transaction tx,
+                                                   BankProductDTO productSource,
+                                                   BankProductDTO productTarget) {
+        if(tx.getType() == TransactionType.TRANSFER){
+            if(productSource == null){
+                return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSFER_FOR_SOURCE_ACCOUNT));
+            }
+            if(productTarget == null){
+                return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSFER_FOR_TARGET_ACCOUNT));
+            }
+            if (!productSource.getType().equals(ProductType.CURRENT)
+                    && !productSource.getType().equals(ProductType.SAVINGS)){
+                return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSFER_FOR_SOURCE_ACCOUNT));
+            }
+            if(!productTarget.getType().equals(ProductType.CURRENT)
+                    && !productTarget.getType().equals(ProductType.SAVINGS)){
+                return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSFER_FOR_TARGET_ACCOUNT));
+            }
+        }
+        return Mono.empty();
     }
 
     private Mono<Void> validateBankAccountType(BankProductDTO product) {
@@ -179,8 +212,10 @@ public class TransactionServiceImpl implements TransactionService {
                 });
     }
 
-    private Mono<Transaction> processTransactionAndUpdate(Transaction tx, BankProductDTO product) {
-        BigDecimal balance = safeBalance(product);
+    private Mono<Transaction> processTransactionAndUpdate(Transaction tx,
+                                                          BankProductDTO productSource,
+                                                          BankProductDTO productTarget) {
+        BigDecimal balance = safeBalance(productSource);
         BigDecimal fee = tx.getTransactionFee() != null ? BigDecimal.valueOf(tx.getTransactionFee()) : BigDecimal.ZERO;
         BigDecimal newBalance;
 
@@ -188,19 +223,36 @@ public class TransactionServiceImpl implements TransactionService {
             // El depósito se reduce por la comisión cobrada
             BigDecimal netAmount = tx.getAmount().subtract(fee);
             newBalance = balance.add(netAmount);
-        } else if (tx.getType() == TransactionType.WITHDRAWAL) {
+            productSource.setBalance(newBalance);
+        }
+        else if(tx.getType() == TransactionType.TRANSFER){
+            //Retiro del dinero en la cuenta origen
+            BigDecimal totalWithdrawal = tx.getAmount().add(fee);
+            if (totalWithdrawal.compareTo(balance) > 0) {
+                return Mono.error(new IllegalArgumentException(Constants.ERROR_INSUFFICIENT_FUNDS));
+            }
+            newBalance = balance.subtract(totalWithdrawal);
+            productSource.setBalance(newBalance);
+
+            //Ingreso del dinero a la cuenta destino
+            BigDecimal newBalanceProductTarget = productTarget.getBalance().add(tx.getAmount());
+            productTarget.setBalance(newBalanceProductTarget);
+
+        }
+        else if (tx.getType() == TransactionType.WITHDRAWAL) {
             // El retiro se incrementa por la comisión
             BigDecimal totalWithdrawal = tx.getAmount().add(fee);
             if (totalWithdrawal.compareTo(balance) > 0) {
                 return Mono.error(new IllegalArgumentException(Constants.ERROR_INSUFFICIENT_FUNDS));
             }
             newBalance = balance.subtract(totalWithdrawal);
+            productSource.setBalance(newBalance);
         } else {
             return Mono.error(new IllegalArgumentException(Constants.ERROR_INVALID_TRANSACTION_FOR_BANK_ACCOUNT));
         }
 
-        product.setBalance(newBalance);
-        return updateProductAndSaveTransaction(product, tx);
+
+        return updateProductAndSaveTransaction(productSource, productTarget, tx);
     }
 
     private Mono<Transaction> applyTransactionFeeIfExceeded(Transaction tx, BankProductDTO product) {
@@ -212,7 +264,7 @@ public class TransactionServiceImpl implements TransactionService {
         LocalDateTime start = now.withDayOfMonth(1).with(LocalTime.MIN);
         LocalDateTime end = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).with(LocalTime.MAX);
 
-        return repository.findByProductIdAndDateTimeBetween(product.getId(), start, end)
+        return repository.findBySourceProductIdAndDateTimeBetween(product.getId(), start, end)
                 .count()
                 .map(count -> {
                     ProductDetails details = product.getDetails();
@@ -241,12 +293,20 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
 
-    private Mono<Transaction> updateProductAndSaveTransaction(BankProductDTO product, Transaction tx) {
-        //Actualiza el producto y registra una nueva transaccion
-            return productService.updateProduct(product)
-                .flatMap(response -> {
-                    return repository.save(tx);
-                });
+    private Mono<Transaction> updateProductAndSaveTransaction(BankProductDTO productSource,
+                                                              BankProductDTO productTarget,
+                                                              Transaction tx) {
+        Mono<Void> updateSource = productSource != null
+                ? productService.updateProduct(productSource).then()
+                : Mono.empty();
+
+        Mono<Void> updateTarget = productTarget != null
+                ? productService.updateProduct(productTarget).then()
+                : Mono.empty();
+
+        return updateSource
+                .then(updateTarget)
+                .then(repository.save(tx));
     }
 
     private BigDecimal safeBalance(BankProductDTO product) {
@@ -269,7 +329,7 @@ public class TransactionServiceImpl implements TransactionService {
         LocalDateTime startOfMonth = now.withDayOfMonth(1).with(LocalTime.MIN);
         LocalDateTime endOfMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).with(LocalTime.MAX);
 
-        return repository.findByProductIdAndDateTimeBetween(product.getId(), startOfMonth, endOfMonth)
+        return repository.findBySourceProductIdAndDateTimeBetween(product.getId(), startOfMonth, endOfMonth)
                 .count()
                 .map(count -> {
                     ProductDetails details = product.getDetails();

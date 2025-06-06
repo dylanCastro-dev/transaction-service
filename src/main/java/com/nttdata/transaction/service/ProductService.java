@@ -13,6 +13,8 @@ public interface ProductService {
      */
     public Mono<BankProductResponse> fetchProductById(String productId);
 
+    Mono<BankProductResponse> fetchProductByCustomerId(String customerId);
+
     /**
      * Actualiza un producto.
      *

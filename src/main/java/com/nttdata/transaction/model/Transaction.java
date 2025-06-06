@@ -21,8 +21,6 @@ public class Transaction {
     @Id
     private String id;
 
-    private String productId;
-
     private TransactionType type;
 
     private BigDecimal amount;
@@ -30,4 +28,8 @@ public class Transaction {
     private LocalDateTime dateTime;
 
     private Double transactionFee;
+
+    private String sourceProductId;
+
+    private String targetProductId;
 }

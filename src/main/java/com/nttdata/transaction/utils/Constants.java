@@ -50,5 +50,9 @@ public class Constants {
             "Fondos insuficientes para el retiro.";
     public static final String ERROR_INVALID_TRANSACTION_FOR_BANK_ACCOUNT =
             "Tipo de transacción no válido para cuenta bancaria.";
+    public static final String ERROR_INVALID_TRANSFER_FOR_SOURCE_ACCOUNT =
+            "La cuenta origen no es valida.";
+    public static final String ERROR_INVALID_TRANSFER_FOR_TARGET_ACCOUNT =
+            "La cuenta destino no es valida.";
 
 }

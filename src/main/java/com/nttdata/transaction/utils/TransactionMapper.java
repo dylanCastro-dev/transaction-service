@@ -1,14 +1,16 @@
 package com.nttdata.transaction.utils;
 
-import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
 import com.nttdata.transaction.model.Transaction;
 import com.nttdata.transaction.model.Type.TransactionType;
 import org.openapitools.model.AvailableBalanceResponse;
 import org.openapitools.model.AvailableBalanceResponseBalance;
+import org.openapitools.model.BalanceSummaryResponse;
+import org.openapitools.model.BalanceSummaryResponseBalanceSummary;
+import org.openapitools.model.CommissionReportResponse;
+import org.openapitools.model.CommissionReportResponseCommissionReport;
 import org.openapitools.model.TemplateResponse;
 import org.openapitools.model.TransactionBody;
 import org.openapitools.model.TransactionResponse;
-
 
 import java.math.BigDecimal;
 import java.time.ZoneOffset;
@@ -25,7 +27,8 @@ public class TransactionMapper {
      */
     public static Transaction toTransaction(TransactionBody body) {
         return Transaction.builder()
-                .productId(body.getProductId())
+                .sourceProductId(body.getSourceProductId())
+                .targetProductId(body.getTargetProductId())
                 .type(TransactionType.valueOf(body.getType()))
                 .amount(body.getAmount())
                 .dateTime(body.getDateTime().toLocalDateTime())
@@ -38,7 +41,8 @@ public class TransactionMapper {
     public static TransactionResponse toTransactionResponse(Transaction transaction) {
         TransactionResponse body = new TransactionResponse();
         body.setId(transaction.getId());
-        body.setProductId(transaction.getProductId());
+        body.setSourceProductId(transaction.getSourceProductId());
+        body.setTargetProductId(transaction.getTargetProductId());
         body.setType(transaction.getType().name());
         body.setAmount(transaction.getAmount());
         body.setTransactionFee(BigDecimal.valueOf(transaction.getTransactionFee()));
@@ -87,15 +91,44 @@ public class TransactionMapper {
                 .balance(null);
     }
 
-    public static AvailableBalanceResponse toResponseAvailableBalance(AvailableBalanceDTO dto,
+    public static AvailableBalanceResponse toResponseAvailableBalance(AvailableBalanceResponseBalance dto,
                                                                       int status,
                                                                       String message) {
         return new AvailableBalanceResponse()
                 .status(status)
                 .message(message)
-                .balance(new AvailableBalanceResponseBalance()
-                        .productId(dto.getProductId())
-                        .availableBalance(dto.getAvailableBalance())
-                        .productCategory(dto.getProductCategory()));
+                .balance(dto);
+    }
+
+    public static BalanceSummaryResponse toResponseBalanceSummary(int status, String message) {
+        return new BalanceSummaryResponse()
+                .status(status)
+                .message(message)
+                .balanceSummary(null);
+    }
+
+    public static BalanceSummaryResponse toResponseBalanceSummary(BalanceSummaryResponseBalanceSummary dto,
+                                                                  int status,
+                                                                  String message) {
+        return new BalanceSummaryResponse()
+                .status(status)
+                .message(message)
+                .balanceSummary(dto);
+    }
+
+    public static CommissionReportResponse toResponseCommissionReport(int status, String message) {
+        return new CommissionReportResponse()
+                .status(status)
+                .message(message)
+                .commissionReport(null);
+    }
+
+    public static CommissionReportResponse toResponseCommissionReport(CommissionReportResponseCommissionReport dto,
+                                                                      int status,
+                                                                      String message) {
+        return new CommissionReportResponse()
+                .status(status)
+                .message(message)
+                .commissionReport(dto);
     }
 }

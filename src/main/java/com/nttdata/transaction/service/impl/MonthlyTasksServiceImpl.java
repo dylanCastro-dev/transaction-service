@@ -57,7 +57,7 @@ public class MonthlyTasksServiceImpl implements MonthlyTasksService {
         LocalDateTime start = currentMonth.atDay(1).atStartOfDay();
         LocalDateTime end = currentMonth.atEndOfMonth().atTime(LocalTime.MAX);
 
-        return repository.findByProductIdAndDateTimeBetween(product.getId(), start, end)
+        return repository.findBySourceProductIdAndDateTimeBetween(product.getId(), start, end)
                 .groupBy(tx -> tx.getDateTime().toLocalDate()) // Agrupa por día
                 .flatMap(grouped -> grouped
                         .map(Transaction::getAmount)
@@ -131,7 +131,7 @@ public class MonthlyTasksServiceImpl implements MonthlyTasksService {
         product.setBalance(balance.subtract(fee));
 
         Transaction tx = Transaction.builder()
-                .productId(product.getId())
+                .sourceProductId(product.getId())
                 .amount(fee)
                 .type(TransactionType.MAINTENANCE)
                 .dateTime(LocalDateTime.now())

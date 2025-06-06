@@ -31,6 +31,20 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    public Mono<BankProductResponse> fetchProductByCustomerId(String customerId) {
+        return Utils.getProductService().get().get()
+                .uri("/products/customer/{id}", customerId)
+                .retrieve()
+                .onStatus(HttpStatus::is4xxClientError, response -> {
+                    if (response.statusCode() == HttpStatus.NOT_FOUND) {
+                        return Mono.error(new EmptyResultException(Constants.ERROR_FIND_PRODUCT));
+                    }
+                    return Mono.error(new RuntimeException("Error en la solicitud: " + response.statusCode()));
+                })
+                .bodyToMono(BankProductResponse.class);
+    }
+
+    @Override
     public Mono<BankProductResponse> updateProduct(BankProductDTO product) {
         return Utils.getProductService().get().put()
                 .uri("/products/{id}", product.getId())

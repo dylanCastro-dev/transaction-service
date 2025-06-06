@@ -6,6 +6,86 @@ info:
 servers:
   - url: http://localhost:8082/transactions
 paths:
+  /report/customers/{customerId}/balances:
+    get:
+      summary: Obtener resumen de saldos promedio diarios del mes en curso
+      operationId: generateMonthlyBalanceSummary
+      description: Devuelve el saldo promedio diario del mes actual para todos los productos del cliente.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          description: Identificador único del cliente
+          schema:
+            type: string
+            example: "c123"
+      responses:
+        '200':
+          description: Lista de saldos promedio diarios por producto
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BalanceSummaryResponse'
+
+  /report/ReportAvailableBalance/{productId}:
+    get:
+      summary: Consultar saldo disponible de un producto bancario o tarjeta de crédito
+      operationId: generateReportAvailableBalance
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Saldo disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableBalanceResponse'
+
+  /report/customers/{customerId}/commissions:
+    get:
+      summary: Obtener reporte de comisiones por producto
+      operationId: generateCommissionReports
+      description: Genera un resumen de comisiones cobradas por producto de un cliente en un periodo de tiempo.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          description: Identificador único del cliente
+          schema:
+            type: string
+            example: "c123"
+        - name: start
+          in: query
+          required: true
+          description: Fecha de inicio del periodo (formato ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2025-06-01T00:00:00"
+        - name: end
+          in: query
+          required: true
+          description: Fecha de fin del periodo (formato ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2025-06-30T23:59:59"
+      responses:
+        '200':
+          description: Lista de comisiones cobradas por producto
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommissionReportResponse'
+
   /transactions:
     get:
       summary: Listar todas las transacciones
@@ -90,24 +170,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/TemplateResponse'
 
-  /report/ReportAvailableBalance/{productId}:
-    get:
-      summary: Consultar saldo disponible de un producto bancario o tarjeta de crédito
-      operationId: generateReportAvailableBalance
-      parameters:
-        - name: productId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Saldo disponible
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AvailableBalanceResponse'
-
   /transactions/by-product/{productId}:
     get:
       summary: Listar todas las transacciones de un producto bancario
@@ -143,12 +205,15 @@ components:
     TransactionBody:
       type: object
       properties:
-        productId:
+        sourceProductId:
+          type: string
+          example: prod123
+        targetProductId:
           type: string
           example: prod123
         type:
           type: string
-          example: "[DEPOSIT, WITHDRAWAL, PAYMENT]"
+          example: "[DEPOSIT, WITHDRAWAL, PAYMENT, TRANSFER]"
         amount:
           type: number
           format: decimal
@@ -164,12 +229,15 @@ components:
         id:
           type: string
           example: 663032b0ac82a12a8445a9d1
-        productId:
+        sourceProductId:
+          type: string
+          example: prod123
+        targetProductId:
           type: string
           example: prod123
         type:
           type: string
-          example: "[DEPOSIT, WITHDRAWAL, PAYMENT]"
+          example: "[DEPOSIT, WITHDRAWAL, PAYMENT, TRANSFER]"
         amount:
           type: number
           format: decimal
@@ -208,7 +276,7 @@ components:
           example: 200
         message:
           type: string
-          example: Saldo disponible consultado correctamente
+          example: Reporte generado correctamente
         balance:
           type: object
           properties:
@@ -222,3 +290,79 @@ components:
             productCategory:
               type: string
               example: "[CREDIT, BANK]"
+
+    BalanceSummaryResponse:
+      type: object
+      description: Respuesta con saldo promedio diario
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Reporte generado correctamente
+        balanceSummary:
+          type: object
+          properties:
+            customerId:
+              type: string
+              description: Identificador único del cliente
+            month:
+              type: string
+              description: Mes al que corresponde el resumen (formato yyyy-MM)
+              example: "2025-06"
+            products:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductBalanceSummary'
+
+    ProductBalanceSummary:
+      type: object
+      properties:
+        productId:
+          type: string
+          description: Identificador único del producto bancario
+        productType:
+          type: string
+          description: Tipo de producto financiero
+        averageDailyBalance:
+          type: number
+          format: decimal
+          description: Saldo promedio diario del mes
+          example: 5230.75
+
+    CommissionReportResponse:
+      type: object
+      description: Respuesta con saldo promedio diario
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Reporte generado correctamente
+        commissionReport:
+          type: object
+          description: Resumen de comisiones cobradas por producto durante un periodo específico.
+          properties:
+            productId:
+              type: string
+              description: Identificador único del producto (cuenta o crédito) desde el cual se originó la transacción con comisión.
+              example: "prod-001"
+            productType:
+              type: string
+              description: Tipo de producto financiero asociado.
+              example: "SAVINGS"
+            totalTransactions:
+              type: integer
+              description: Número total de transacciones con comisión registradas para el producto.
+              example: 12
+            totalFee:
+              type: number
+              format: decimal
+              description: Suma total de las comisiones cobradas sobre el producto en el periodo consultado.
+              example: 45.75
+            currency:
+              type: string
+              description: Moneda en la que se registraron las comisiones.
+              example: "PEN"

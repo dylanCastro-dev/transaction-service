@@ -111,7 +111,7 @@ public class TransactionServiceImplTest {
     @Test
     void testGetByProductId() {
         Transaction transaction = new Transaction();
-        Mockito.when(repository.findByProductId("prod-1")).thenReturn(Flux.just(transaction));
+        Mockito.when(repository.findBySourceProductId("prod-1")).thenReturn(Flux.just(transaction));
         StepVerifier.create(transactionService.getByProductId("prod-1")).expectNext(transaction).verifyComplete();
     }
 
@@ -126,7 +126,7 @@ public class TransactionServiceImplTest {
         // Transacción simulada
         Transaction tx = Transaction.builder()
                 .id("tx-1")
-                .productId("prod-1")
+                .sourceProductId("prod-1")
                 .type(TransactionType.DEPOSIT)
                 .amount(BigDecimal.valueOf(500))
                 .build();
@@ -157,7 +157,8 @@ public class TransactionServiceImplTest {
 
         // Simulación del guardado de la transacción
         Mockito.when(repository.save(any(Transaction.class))).thenReturn(Mono.just(tx));
-        Mockito.when(repository.findByProductIdAndDateTimeBetween(anyString(), any(), any())).thenReturn(Flux.empty());
+        Mockito.when(repository.findBySourceProductIdAndDateTimeBetween
+                (anyString(), any(), any())).thenReturn(Flux.empty());
 
         // Instanciar el servicio
         TransactionServiceImpl transactionService = new TransactionServiceImpl(repository, productService);
@@ -165,7 +166,7 @@ public class TransactionServiceImplTest {
         // Ejecutar y verificar
         StepVerifier.create(transactionService.create(tx))
                 .expectNextMatches(result ->
-                        result.getProductId().equals("prod-1") &&
+                        result.getSourceProductId().equals("prod-1") &&
                                 result.getType() == TransactionType.DEPOSIT &&
                                 result.getAmount().compareTo(BigDecimal.valueOf(500)) == 0
                 )
@@ -178,7 +179,7 @@ public class TransactionServiceImplTest {
         Transaction original = Transaction.builder()
                 .type(TransactionType.WITHDRAWAL)
                 .amount(BigDecimal.valueOf(100))
-                .productId("prod-1")
+                .sourceProductId("prod-1")
                 .build();
         Mockito.when(repository.findById("tx-1")).thenReturn(Mono.just(original));
         Mockito.when(repository.save(any(Transaction.class))).thenReturn(Mono.just(original));
@@ -239,7 +240,7 @@ public class TransactionServiceImplTest {
 
         // Simular transacción a guardar
         Transaction tx = Transaction.builder()
-                .productId("prod-1")
+                .sourceProductId("prod-1")
                 .amount(BigDecimal.valueOf(10))
                 .type(TransactionType.MAINTENANCE)
                 .dateTime(LocalDateTime.now())
@@ -276,7 +277,7 @@ public class TransactionServiceImplTest {
         // Mock repository
         TransactionRepository repository = Mockito.mock(TransactionRepository.class);
         Mockito.when(repository.save(any(Transaction.class))).thenReturn(Mono.just(tx));
-        Mockito.when(repository.findByProductIdAndDateTimeBetween(anyString(), any(), any()))
+        Mockito.when(repository.findBySourceProductIdAndDateTimeBetween(anyString(), any(), any()))
                 .thenReturn(Flux.just()); // sin transacciones, no bloquea
 
         // Mock productService

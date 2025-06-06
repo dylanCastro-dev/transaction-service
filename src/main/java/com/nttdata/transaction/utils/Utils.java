@@ -30,7 +30,7 @@ public class Utils {
             throw new IllegalArgumentException("El cuerpo de la transacción no puede ser nulo.");
         }
 
-        if (body.getProductId() == null || body.getProductId().trim().isEmpty()) {
+        if (body.getSourceProductId() == null || body.getSourceProductId().trim().isEmpty()) {
             throw new IllegalArgumentException("El ID del producto es obligatorio.");
         }
 

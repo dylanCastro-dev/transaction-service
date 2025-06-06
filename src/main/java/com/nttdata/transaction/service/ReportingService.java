@@ -1,7 +1,12 @@
 package com.nttdata.transaction.service;
 
-import com.nttdata.transaction.model.Dto.AvailableBalanceDTO;
+import org.openapitools.model.AvailableBalanceResponseBalance;
+import org.openapitools.model.BalanceSummaryResponseBalanceSummary;
+import org.openapitools.model.CommissionReportResponseCommissionReport;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.time.OffsetDateTime;
 
 public interface ReportingService {
     /**
@@ -11,5 +16,11 @@ public interface ReportingService {
      * @param productId Identificador del producto bancario
      * @return Mono con el saldo disponible
      */
-    Mono<AvailableBalanceDTO> generateReportAvailableBalance(String productId);
+    Mono<AvailableBalanceResponseBalance> generateReportAvailableBalance(String productId);
+
+    Flux<BalanceSummaryResponseBalanceSummary> generateMonthlyBalanceSummary(String customerId);
+
+    Flux<CommissionReportResponseCommissionReport> generateCommissionReports(String customerId,
+                                                                             OffsetDateTime start,
+                                                                             OffsetDateTime end);
 }
