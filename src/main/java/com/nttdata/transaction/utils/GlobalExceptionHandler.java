@@ -1,5 +1,7 @@
 package com.nttdata.transaction.utils;
 
+import com.nttdata.transaction.utils.exceptions.EmptyResultException;
+import com.nttdata.transaction.utils.exceptions.ServiceUnavailableException;
 import org.openapitools.model.AvailableBalanceResponse;
 import org.openapitools.model.TemplateResponse;
 import org.slf4j.Logger;
@@ -26,6 +28,26 @@ public class GlobalExceptionHandler {
                         .transactions(null));
     }
 
+    @ExceptionHandler(EmptyResultException.class)
+    public ResponseEntity<AvailableBalanceResponse> handleEmptyResult(EmptyResultException e) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new AvailableBalanceResponse()
+                .status(404)
+                .message(e.getMessage())
+                .balance(null));
+    }
+
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<TemplateResponse> handleServiceUnavailable(ServiceUnavailableException e) {
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new TemplateResponse()
+                        .status(HttpStatus.SERVICE_UNAVAILABLE.value())
+                        .message(e.getMessage())
+                        .transactions(null));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<TemplateResponse> handleGeneralException(Exception e) {
         log.error("Error inesperado: ", e);
@@ -35,16 +57,6 @@ public class GlobalExceptionHandler {
                         .status(500)
                         .message(Constants.ERROR_INTERNAL)
                         .transactions(null));
-    }
-
-    @ExceptionHandler(EmptyResultException.class)
-    public ResponseEntity<AvailableBalanceResponse> handleEmptyResult(EmptyResultException e) {
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(new AvailableBalanceResponse()
-                .status(404)
-                .message(e.getMessage())
-                .balance(null));
     }
 
 }

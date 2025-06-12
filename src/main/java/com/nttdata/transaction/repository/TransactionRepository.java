@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Repository
 public interface TransactionRepository extends ReactiveMongoRepository<Transaction, String> {
@@ -16,4 +17,8 @@ public interface TransactionRepository extends ReactiveMongoRepository<Transacti
                                                               LocalDateTime end);
 
     Flux<Transaction> findByDateTimeBetween(LocalDateTime start, LocalDateTime end);
+
+    Flux<Transaction> findByDateRangeAndProductIds(List<String> productIds,
+                                                   LocalDateTime localDateTime,
+                                                   LocalDateTime localDateTime1);
 }

@@ -1,6 +1,7 @@
 package com.nttdata.transaction.controller;
 
 import com.nttdata.transaction.service.MonthlyTasksService;
+import com.nttdata.transaction.service.TransactionCardService;
 import com.nttdata.transaction.service.TransactionService;
 import com.nttdata.transaction.utils.Constants;
 import com.nttdata.transaction.utils.TransactionMapper;
@@ -25,7 +26,24 @@ public class TransactionController implements TransactionsApi {
     private static final Logger log = LoggerFactory.getLogger(TransactionController.class);
 
     private final TransactionService transactionService;
+    private final TransactionCardService transactionCardService;
     private final MonthlyTasksService monthlyTasksService;
+
+
+    @Override
+    public Mono<ResponseEntity<TemplateResponse>> processCardTransaction(
+            @RequestBody Mono<TransactionBody> request, ServerWebExchange exchange) {
+
+        return request
+                .doOnNext(req -> log.debug("Request recibido: {}", req))
+                .doOnNext(Utils::validateTransactionBody)
+                .map(TransactionMapper::toTransaction)
+                .flatMap(transactionCardService::processCardTransaction)
+                .map(created -> TransactionMapper.toResponse(created,
+                        201,
+                        Constants.SUCCESS_CREATE_TRANSACTION))
+                .map(ResponseEntity::ok);
+    }
 
     @Override
     public Mono<ResponseEntity<TemplateResponse>> getAllTransactions(ServerWebExchange exchange) {
@@ -110,4 +128,5 @@ public class TransactionController implements TransactionsApi {
                                 Constants.SUCCESS_APPLY_MONTHLY_FEE))
                 .map(ResponseEntity::ok);
     }
+
 }

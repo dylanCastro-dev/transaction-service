@@ -152,7 +152,7 @@ public class TransactionServiceImplTest {
         ProductService productService = Mockito.mock(ProductService.class);
 
         // Simulación de métodos del ProductService
-        Mockito.when(productService.fetchProductById("prod-1")).thenReturn(Mono.just(mockResponse));
+        Mockito.when(productService.getProductById("prod-1")).thenReturn(Mono.just(mockResponse));
         Mockito.when(productService.updateProduct(any(BankProductDTO.class))).thenReturn(Mono.just(mockResponse));
 
         // Simulación del guardado de la transacción
@@ -201,7 +201,7 @@ public class TransactionServiceImplTest {
 
         // Mock del ProductService
         ProductService productService = Mockito.mock(ProductService.class);
-        Mockito.when(productService.fetchProductById("prod-1")).thenReturn(Mono.just(mockResponse));
+        Mockito.when(productService.getProductById("prod-1")).thenReturn(Mono.just(mockResponse));
 
         // Crear instancia del servicio que se está probando (TransactionServiceImpl)
         ReportingServiceImpl reportingService = new ReportingServiceImpl(repository, productService);
@@ -282,7 +282,7 @@ public class TransactionServiceImplTest {
 
         // Mock productService
         ProductService productService = Mockito.mock(ProductService.class);
-        Mockito.when(productService.getAllBankProducts()).thenReturn(Flux.just(product));
+        Mockito.when(productService.getAllBankProducts()).thenReturn(Mono.just(mockGetResponse));
         Mockito.when(productService.updateProduct(any(BankProductDTO.class)))
                 .thenReturn(Mono.just(mockPutResponse));
 

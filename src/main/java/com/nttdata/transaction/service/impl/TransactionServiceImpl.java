@@ -68,7 +68,7 @@ public class TransactionServiceImpl implements TransactionService {
     public Mono<Transaction> create(Transaction transaction) {
         transaction.setDateTime(LocalDateTime.now());
 
-        return  productService.fetchProductById(transaction.getSourceProductId())
+        return  productService.getProductById(transaction.getSourceProductId())
                 .flatMap(responseSource -> {
                     BankProductDTO productSource = responseSource.getProducts().get(0);
                     switch (transaction.getType()) {
@@ -87,7 +87,7 @@ public class TransactionServiceImpl implements TransactionService {
                             return handleBankTransaction(transaction, productSource, null);
                         case TRANSFER:
                             //Busca el producto destino
-                            return productService.fetchProductById(transaction.getTargetProductId())
+                            return productService.getProductById(transaction.getTargetProductId())
                                     .flatMap(responseTarget ->{
                                                 BankProductDTO productTarget = responseTarget.getProducts().get(0);
                                                 return handleBankTransaction(transaction, productSource, productTarget);
@@ -239,7 +239,7 @@ public class TransactionServiceImpl implements TransactionService {
             productTarget.setBalance(newBalanceProductTarget);
 
         }
-        else if (tx.getType() == TransactionType.WITHDRAWAL) {
+        else if (tx.getType() == TransactionType.WITHDRAWAL || tx.getType() == TransactionType.PURCHASE) {
             // El retiro se incrementa por la comisión
             BigDecimal totalWithdrawal = tx.getAmount().add(fee);
             if (totalWithdrawal.compareTo(balance) > 0) {

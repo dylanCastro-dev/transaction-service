@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -33,13 +34,15 @@ public class MonthlyTasksServiceImpl implements MonthlyTasksService {
 
     @Override
     public Mono<Void> applyMonthlyTasks() {
-        return  productService.getAllBankProducts()
+        return productService.getAllBankProducts()
+                .flatMapMany(response -> Flux.fromIterable(response.getProducts()))
                 .flatMap(product -> Mono.when(
                         applyMaintenanceFeeIfNeeded(product),
                         evaluateAverageBalanceRequirement(product)
                 ))
                 .then();
     }
+
 
     private Mono<Void> evaluateAverageBalanceRequirement(BankProductDTO product) {
         if (!(product.getDetails() instanceof SavingsAccount)) {

@@ -8,11 +8,14 @@ import com.nttdata.transaction.model.Type.TransactionType;
 import com.nttdata.transaction.repository.TransactionRepository;
 import com.nttdata.transaction.service.ProductService;
 import com.nttdata.transaction.service.ReportingService;
+import com.nttdata.transaction.utils.ProductMapper;
 import lombok.RequiredArgsConstructor;
 import org.openapitools.model.AvailableBalanceResponseBalance;
 import org.openapitools.model.BalanceSummaryResponseBalanceSummary;
 import org.openapitools.model.CommissionReportResponseCommissionReport;
 import org.openapitools.model.ProductBalanceSummary;
+import org.openapitools.model.ProductConsolidatedSummaryResponseSummary;
+import org.openapitools.model.ProductGeneralSummaryResponseSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -39,8 +42,56 @@ public class ReportingServiceImpl implements ReportingService {
     private final ProductService productService;
 
     @Override
+    public Mono<ProductGeneralSummaryResponseSummary> generateGeneralProductSummary(
+            String customerId, OffsetDateTime start, OffsetDateTime end) {
+
+        return productService.getProductByCustomerId(customerId)
+                .flatMap(response -> {
+                    List<BankProductDTO> allProducts = response.getProducts();
+                    List<String> productIds = allProducts.stream()
+                            .map(BankProductDTO::getId)
+                            .collect(Collectors.toList());
+
+                    return repository.findByDateRangeAndProductIds(
+                                    productIds,
+                                    start.toLocalDateTime(),
+                                    end.toLocalDateTime()
+                            )
+                            .flatMap(tx -> Flux.just(tx.getSourceProductId(), tx.getTargetProductId()))
+                            .distinct()
+                            .collectList()
+                            .map(activeProductIds -> {
+                                List<BankProductDTO> filtered = allProducts.stream()
+                                        .filter(p -> activeProductIds.contains(p.getId()))
+                                        .collect(Collectors.toList());
+
+                                ProductGeneralSummaryResponseSummary summary =
+                                        new ProductGeneralSummaryResponseSummary();
+                                summary.setCustomerId(customerId);
+                                summary.setStart(start);
+                                summary.setEnd(end);
+                                summary.setProducts(ProductMapper.toOpenApiList(filtered));
+
+                                return summary;
+                            });
+                });
+    }
+
+
+    @Override
+    public Mono<ProductConsolidatedSummaryResponseSummary> generateConsolidatedProductSummary(String customerId) {
+        return productService.getProductByCustomerId(customerId)
+                .map(response -> {
+                    ProductConsolidatedSummaryResponseSummary summary = new ProductConsolidatedSummaryResponseSummary();
+                    summary.setCustomerId(customerId);
+                    summary.setProducts(ProductMapper.toOpenApiList(response.getProducts()));
+                    return summary;
+                });
+    }
+
+    @Override
     public Mono<AvailableBalanceResponseBalance> generateReportAvailableBalance(String sourceProductId) {
-        return  productService.fetchProductById(sourceProductId)
+        return  productService.getProductById(sourceProductId)
                 .map(response -> {
                     BankProductDTO product = response.getProducts().get(0);
                     BigDecimal balance = product.getBalance() != null ? product.getBalance() : BigDecimal.ZERO;
@@ -64,7 +115,7 @@ public class ReportingServiceImpl implements ReportingService {
         LocalDateTime startDateTime = currentMonth.atDay(1).atStartOfDay();
         LocalDateTime endDateTime = currentMonth.atEndOfMonth().atTime(LocalTime.MAX);
 
-        return productService.fetchProductByCustomerId(customerId) // Mono<TemplateResponse>
+        return productService.getProductByCustomerId(customerId) // Mono<TemplateResponse>
                 .flatMapMany(templateResponse -> Flux.fromIterable(templateResponse.getProducts()))
                 .flatMap(product -> calculateAverageBalance(product, startDateTime, endDateTime))
                 .collectList()
@@ -82,7 +133,7 @@ public class ReportingServiceImpl implements ReportingService {
     public Flux<CommissionReportResponseCommissionReport> generateCommissionReports(String customerId,
                                                                                     OffsetDateTime start,
                                                                                     OffsetDateTime end) {
-        return productService.fetchProductByCustomerId(customerId)
+        return productService.getProductByCustomerId(customerId)
                 .flatMapMany(response ->
                         calculateCommissionsPerProduct(response.getProducts(),
                                 start.toLocalDateTime(),

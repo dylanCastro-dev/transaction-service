@@ -1,5 +1,49 @@
 spring:
+  cloud:
+    config:
+      enabled: false
   application:
     name: transaction-service
-  config:
-    import: "configserver:http://localhost:8888"
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/transactiondb
+
+  server:
+    port: 8082
+
+  logging:
+    level:
+      root: DEBUG
+
+  springdoc:
+    api-docs:
+      enabled: true
+      path: /v3/api-docs
+      resolve-schema-properties: true
+      swagger-ui:
+        path: /swagger-ui.html
+    swagger-ui:
+      url: /openapi/transaction-service-openapi.yaml
+
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: resilience4j.circuitbreakers
+
+  resilience4j:
+    circuitbreaker:
+      instances:
+        productService:
+          registerHealthIndicator: true
+          slidingWindowSize: 5
+          failureRateThreshold: 50
+          waitDurationInOpenState: 10s
+          permittedNumberOfCallsInHalfOpenState: 2
+          minimumNumberOfCalls: 5
+          automaticTransitionFromOpenToHalfOpenEnabled: true
+
+    timelimiter:
+      instances:
+        productService:
+          timeoutDuration: 2s

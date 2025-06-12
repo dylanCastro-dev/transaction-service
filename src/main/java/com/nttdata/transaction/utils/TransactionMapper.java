@@ -8,6 +8,10 @@ import org.openapitools.model.BalanceSummaryResponse;
 import org.openapitools.model.BalanceSummaryResponseBalanceSummary;
 import org.openapitools.model.CommissionReportResponse;
 import org.openapitools.model.CommissionReportResponseCommissionReport;
+import org.openapitools.model.ProductConsolidatedSummaryResponse;
+import org.openapitools.model.ProductConsolidatedSummaryResponseSummary;
+import org.openapitools.model.ProductGeneralSummaryResponse;
+import org.openapitools.model.ProductGeneralSummaryResponseSummary;
 import org.openapitools.model.TemplateResponse;
 import org.openapitools.model.TransactionBody;
 import org.openapitools.model.TransactionResponse;
@@ -130,5 +134,39 @@ public class TransactionMapper {
                 .status(status)
                 .message(message)
                 .commissionReport(dto);
+    }
+
+    public static ProductConsolidatedSummaryResponse toResponseProductConsolidatedSummary
+            (ProductConsolidatedSummaryResponseSummary dto,
+            int status,
+            String message) {
+        return new ProductConsolidatedSummaryResponse()
+                .status(status)
+                .message(message)
+                .summary(dto);
+    }
+
+    public static ProductConsolidatedSummaryResponse toResponseProductConsolidatedSummary(int status, String message) {
+        return new ProductConsolidatedSummaryResponse()
+                .status(status)
+                .message(message)
+                .summary(null);
+    }
+
+    public static ProductGeneralSummaryResponse toResponseProductGeneralSummary
+            (ProductGeneralSummaryResponseSummary dto,
+             int status,
+             String message) {
+        return new ProductGeneralSummaryResponse()
+                .status(status)
+                .message(message)
+                .summary(dto);
+    }
+
+    public static ProductGeneralSummaryResponse toResponseProductGeneralSummary(int status, String message) {
+        return new ProductGeneralSummaryResponse()
+                .status(status)
+                .message(message)
+                .summary(null);
     }
 }

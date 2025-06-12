@@ -5,6 +5,7 @@ public enum TransactionType {
     WITHDRAWAL,
     PAYMENT,
     MAINTENANCE,
-    TRANSFER
+    TRANSFER,
+    PURCHASE
 }
 

@@ -8,6 +8,8 @@ import org.openapitools.api.ReportApi;
 import org.openapitools.model.AvailableBalanceResponse;
 import org.openapitools.model.BalanceSummaryResponse;
 import org.openapitools.model.CommissionReportResponse;
+import org.openapitools.model.ProductConsolidatedSummaryResponse;
+import org.openapitools.model.ProductGeneralSummaryResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,13 +25,45 @@ public class ReportingController implements ReportApi {
     private final ReportingService reportingService;
 
     @Override
+    public Mono<ResponseEntity<ProductGeneralSummaryResponse>> generateReportProductSummaryGeneral(
+            String customerId,
+            OffsetDateTime start,
+            OffsetDateTime end,
+            ServerWebExchange exchange) {
+        return reportingService.generateGeneralProductSummary(customerId,start,end)
+                .map(report ->
+                        TransactionMapper.toResponseProductGeneralSummary(report,
+                                200,
+                                Constants.SUCCESS_REPORT))
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(TransactionMapper.toResponseProductGeneralSummary
+                                (404, Constants.ERROR_FIND_TRANSACTION)));
+    }
+
+    @Override
+    public Mono<ResponseEntity<ProductConsolidatedSummaryResponse>> generateReportProductSummary
+            (String customerId,
+            ServerWebExchange exchange) {
+        return reportingService.generateConsolidatedProductSummary(customerId)
+                .map(report ->
+                        TransactionMapper.toResponseProductConsolidatedSummary(report,
+                                200,
+                                Constants.SUCCESS_REPORT))
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(TransactionMapper.toResponseProductConsolidatedSummary
+                                (404, Constants.ERROR_FIND_TRANSACTION)));
+    }
+
+    @Override
     public Mono<ResponseEntity<AvailableBalanceResponse>> generateReportAvailableBalance
             (String productId, ServerWebExchange exchange) {
         return reportingService.generateReportAvailableBalance(productId)
                 .map(report ->
                         TransactionMapper.toResponseAvailableBalance(report,
                                 200,
-                                Constants.SUCCESS_GET_BALANCE))
+                                Constants.SUCCESS_REPORT))
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(TransactionMapper.toResponseAvailableBalance(404, Constants.ERROR_FIND_TRANSACTION)));
@@ -41,7 +75,7 @@ public class ReportingController implements ReportApi {
 
         return reportingService.generateMonthlyBalanceSummary(customerId)
                 .map(report -> TransactionMapper.toResponseBalanceSummary(
-                        report, 200, Constants.SUCCESS_GET_BALANCE
+                        report, 200, Constants.SUCCESS_REPORT
                 ))
                 .collectList()
                 .flatMap(list -> {
@@ -62,7 +96,7 @@ public class ReportingController implements ReportApi {
 
         return reportingService.generateCommissionReports(customerId, start, end)
                 .map(report -> TransactionMapper.toResponseCommissionReport(
-                        report, 200, Constants.SUCCESS_GET_BALANCE))
+                        report, 200, Constants.SUCCESS_REPORT))
                 .collectList()
                 .flatMap(list -> {
                     if (list.isEmpty()) {

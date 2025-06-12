@@ -20,6 +20,8 @@ public class Constants {
             "Transacción eliminada correctamente.";
     public static final String SUCCESS_FIND_LIST_TRANSACTION_BY_PRODUCT =
             "Transacciones del producto obtenidas correctamente.";
+    public static final String SUCCESS_REPORT =
+            "Reporte generado correctamente.";
     public static final String SUCCESS_GET_BALANCE =
             "Saldo disponible obtenido correctamente.";
     public static final String SUCCESS_APPLY_MONTHLY_FEE =
@@ -28,6 +30,8 @@ public class Constants {
             "Hubo un problema con la solicitud";
     public static final String ERROR_VALIDATION_MESSAGE =
             "Error de validación: %s";
+    public static final String ERROR_CIRCUIT_BREAKER =
+            "Timeout: El servicio no respondió en el tiempo esperado";
 
     // Constantes para validaciones de reglas de transacción
     public static final String ERROR_UNSUPPORTED_TRANSACTION_TYPE =

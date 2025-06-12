@@ -4,7 +4,7 @@ info:
   description: API REST para gestionar transacciones bancarias
   version: 1.0.0
 servers:
-  - url: http://localhost:8082/transactions
+  - url: http://localhost:8082/
 paths:
   /report/customers/{customerId}/balances:
     get:
@@ -46,6 +46,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AvailableBalanceResponse'
+
+  /report/ReportProductSummary/{customerId}:
+    get:
+      summary: Resumen consolidado de productos del cliente
+      operationId: generateReportProductSummary
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Productos disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductConsolidatedSummaryResponse'
+
+  /report/ReportProductSummaryGeneral/{customerId}:
+    get:
+      summary: Resumen consolidado de productos del cliente
+      operationId: generateReportProductSummaryGeneral
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: start
+          in: query
+          required: true
+          description: Fecha de inicio del periodo (formato ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2025-06-01T00:00:00"
+        - name: end
+          in: query
+          required: true
+          description: Fecha de fin del periodo (formato ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2025-06-30T23:59:59"
+      responses:
+        '200':
+          description: Productos disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductGeneralSummaryResponse'
 
   /report/customers/{customerId}/commissions:
     get:
@@ -200,6 +252,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/TemplateResponse'
 
+  /transactions/debit-cards:
+    post:
+      summary: Procesa un pago o retiro usando tarjeta de débito
+      operationId: processCardTransaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionBody'
+      responses:
+        '200':
+          description: Transacción registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResponse'
+
 components:
   schemas:
     TransactionBody:
@@ -316,6 +386,62 @@ components:
               items:
                 $ref: '#/components/schemas/ProductBalanceSummary'
 
+    ProductConsolidatedSummaryResponse:
+      type: object
+      description: Resumen consolidado de productos del cliente
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Resumen generado correctamente
+        summary:
+          type: object
+          properties:
+            customerId:
+              type: string
+              description: Identificador único del cliente
+              example: "123456"
+            products:
+              type: array
+              description: Lista de productos financieros del cliente
+              items:
+                $ref: '#/components/schemas/BankProductDTO'
+
+    ProductGeneralSummaryResponse:
+      type: object
+      description: Resumen consolidado de productos con actividad en el rango de fechas especificado
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Reporte generado correctamente
+        summary:
+          type: object
+          properties:
+            customerId:
+              type: string
+              description: Identificador único del cliente
+              example: "123456"
+            start:
+              type: string
+              format: date-time
+              description: Fecha y hora de inicio del reporte
+              example: "2025-06-01T00:00:00Z"
+            end:
+              type: string
+              format: date-time
+              description: Fecha y hora de fin del reporte
+              example: "2025-06-09T23:59:59Z"
+            products:
+              type: array
+              description: Lista de productos con actividad en el intervalo
+              items:
+                $ref: '#/components/schemas/BankProductDTO'
+
     ProductBalanceSummary:
       type: object
       properties:
@@ -366,3 +492,50 @@ components:
               type: string
               description: Moneda en la que se registraron las comisiones.
               example: "PEN"
+
+    BankProductDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID del producto
+          example: id1234
+        customerId:
+          type: string
+          description: ID del cliente asociado al producto
+          example: cust1234
+        type:
+          type: string
+          description: Tipo de producto bancario
+          example: "[ SAVINGS, CURRENT, FIXED_TERM, CREDIT ]"
+        status:
+          type: string
+          description: Estado de producto bancario
+          example: "[ ACTIVE, BLOCKED_AVG_BALANCE ]"
+        name:
+          type: string
+          description: Nombre descriptivo del producto
+          example: Cuenta Ahorro Soles
+        balance:
+          type: number
+          format: decimal
+          description: Saldo actual del producto
+          example: 1000.50
+        holders:
+          type: array
+          description: Titulares de la cuenta empresarial
+          items:
+            type: string
+          example: [ "12345678", "87654321" ]
+        signers:
+          type: array
+          description: Firmantes autorizados
+          items:
+            type: string
+          example: [ "99887766" ]
+        details:
+          type: object
+          description: Detalles del producto como JSON genérico
+          example:
+            maintenanceFee: 0
+            monthlyLimit: 2
